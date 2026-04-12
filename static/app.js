@@ -134,7 +134,17 @@ async function loadDesktops(animate = false) {
     desktops = await api("/api/desktops");
 
     grid.innerHTML = "";
-    desktops.forEach(d => grid.appendChild(makeDesktopCard(d)));
+    const colCount = Math.max(desktops.length, 3);
+    grid.style.setProperty("--col-count", colCount);
+    desktops.forEach((d, i) => {
+      const card = makeDesktopCard(d);
+      if (desktops.length < colCount) {
+        // Center the cards: place first card at the middle column offset
+        const offset = Math.floor((colCount - desktops.length) / 2);
+        card.style.gridColumn = String(offset + i + 1);
+      }
+      grid.appendChild(card);
+    });
 
     if (animate) {
       grid.querySelectorAll(".desktop-thumb").forEach(img => {

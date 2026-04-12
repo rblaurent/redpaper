@@ -128,13 +128,20 @@ async function refreshClaudeStatus() {
 }
 
 // ── Desktops ──────────────────────────────────────────────────────────────────
-async function loadDesktops() {
+async function loadDesktops(animate = false) {
   const grid = document.getElementById("desktops-grid");
   try {
     desktops = await api("/api/desktops");
 
     grid.innerHTML = "";
     desktops.forEach(d => grid.appendChild(makeDesktopCard(d)));
+
+    if (animate) {
+      grid.querySelectorAll(".desktop-thumb").forEach(img => {
+        img.classList.add("pixel-reveal");
+        img.addEventListener("animationend", () => img.classList.remove("pixel-reveal"), { once: true });
+      });
+    }
 
     // Update blurred background from wallpapers
     pickBackgroundFromDesktops(desktops);
@@ -307,7 +314,7 @@ async function generateOne(guid, btn) {
   showProgress("Generating wallpaper…");
   try {
     await api("/api/comfyui/generate", "POST", { desktop_guid: guid });
-    pollUntilDone(() => { hideProgress(); loadDesktops(); fetchStatus(); btn.disabled = false; btn.style.opacity = ""; });
+    pollUntilDone(() => { hideProgress(); loadDesktops(true); fetchStatus(); btn.disabled = false; btn.style.opacity = ""; });
   } catch (e) {
     hideProgress();
     alert("Generation failed: " + e.message);
@@ -322,7 +329,7 @@ async function generateAll() {
   showProgress("Generating wallpapers for all desktops…");
   try {
     await api("/api/comfyui/generate", "POST", { all: true });
-    pollUntilDone(() => { hideProgress(); loadDesktops(); fetchStatus(); });
+    pollUntilDone(() => { hideProgress(); loadDesktops(true); fetchStatus(); });
   } catch (e) {
     hideProgress();
     alert("Generation failed: " + e.message);
@@ -333,8 +340,41 @@ async function generateAll() {
 function pollUntilDone(onDone) {
   const check = async () => {
     const status = await api("/api/comfyui/status").catch(() => null);
-    if (!status || !status.generating) { onDone(); }
-    else { setTimeout(check, 3000); }
+    if (!status || !status.generating) { onDone(); return; }
+    if (status.progress) {
+      const p = status.progress;
+      // Desktop name / label
+      document.getElementById("progress-desktop").textContent = p.label || "";
+      // Progress bar — combine desktop + image progress
+      const desktopFrac = p.desktop_total > 0
+        ? (p.desktop_current - 1) / p.desktop_total
+        : 0;
+      const imageFrac = p.image_total > 0
+        ? (p.image_current / p.image_total) / (p.desktop_total || 1)
+        : 0;
+      const pct = Math.round((desktopFrac + imageFrac) * 100);
+      document.getElementById("progress-bar").style.width = pct + "%";
+      // Image count within desktop
+      const imgCountEl = document.getElementById("progress-image-count");
+      if (p.image_total > 1) {
+        imgCountEl.textContent = `Image ${p.image_current || "…"} of ${p.image_total}`;
+      } else if (p.image_total === 1) {
+        imgCountEl.textContent = "Generating image…";
+      } else {
+        imgCountEl.textContent = "";
+      }
+      // Desktop counter if multiple desktops
+      const textEl = document.getElementById("progress-text");
+      if (p.desktop_total > 1) {
+        textEl.textContent = `Desktop ${p.desktop_current} of ${p.desktop_total}`;
+      } else {
+        textEl.textContent = "Generating…";
+      }
+      // Prompt
+      const promptEl = document.getElementById("progress-prompt");
+      promptEl.textContent = p.prompt || "";
+    }
+    setTimeout(check, 3000);
   };
   setTimeout(check, 3000);
 }
@@ -542,6 +582,10 @@ async function saveMonitorConfig() {
 // ── Progress ──────────────────────────────────────────────────────────────────
 function showProgress(msg) {
   document.getElementById("progress-text").textContent = msg || "Working…";
+  document.getElementById("progress-desktop").textContent = "";
+  document.getElementById("progress-image-count").textContent = "";
+  document.getElementById("progress-prompt").textContent = "";
+  document.getElementById("progress-bar").style.width = "0%";
   document.getElementById("progress-overlay").style.display = "flex";
 }
 function hideProgress() {

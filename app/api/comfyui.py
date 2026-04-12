@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.services import comfyui_process
 from app.services.comfyui_client import get_queue_status
 from app.services.desktop_detector import get_desktops
-from app.services.generator import generate_all, generate_for_desktop
+from app.services.generator import generate_all, generate_for_desktop, get_progress
 from app.services.scheduler import get_next_run, trigger_now
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,6 +41,7 @@ async def comfyui_status():
         "queue": queue,
         "next_scheduled": get_next_run(),
         "generating": _generating,
+        "progress": get_progress(),
     }
 
 

@@ -315,21 +315,16 @@ html, body {
   height: 68px;       /* fixed height; width is auto via inline aspect-ratio */
   border-radius: 4px;
   overflow: hidden;
-  border: 2px solid rgba(255,255,255,0.14);
+  border: none;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.40);
   cursor: pointer;
   pointer-events: all;
-  transition: border-color .2s, opacity .2s, transform .2s;
+  transition: opacity .2s, transform .2s, box-shadow .2s;
 }
-.mon-thumb:hover { transform: translateY(-2px); }
+.mon-thumb:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.65), 0 2px 5px rgba(0,0,0,0.45); }
 
-/* Mode-based border colour */
-.mon-thumb.mode-shared     { border-color: rgba(122,173,143,0.65); }
-.mon-thumb.mode-individual { border-color: rgba(201,168,76,0.65); }
-.mon-thumb.mode-off        { border-color: rgba(255,255,255,0.10); opacity: 0.38; }
-
-.mon-thumb.mode-shared:hover     { border-color: rgba(122,173,143,1); }
-.mon-thumb.mode-individual:hover { border-color: rgba(201,168,76,1); }
-.mon-thumb.mode-off:hover        { opacity: 0.75; border-color: rgba(255,255,255,0.30); }
+.mon-thumb.mode-off { opacity: 0.38; }
+.mon-thumb.mode-off:hover { opacity: 0.75; }
 
 .mon-thumb-img {
   width: 100%; height: 100%;
@@ -539,13 +534,64 @@ html, body {
   border: 1px solid var(--glass-border-hi);
   border-radius: var(--r-lg);
   box-shadow: 0 2px 0 rgba(255,255,255,0.05) inset, 0 32px 72px rgba(0,0,0,0.6);
-  padding: 48px 60px;
+  padding: 40px 52px;
   text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 24px;
-  min-width: 280px;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  min-width: 340px; max-width: 600px;
 }
 .progress-glass p {
   font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--t2);
+  margin: 0;
+}
+.progress-desktop {
+  font-size: 22px !important;
+  letter-spacing: 0.04em !important;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold) !important;
+  text-transform: none !important;
+  font-weight: 500;
+  line-height: 1.1;
+  min-height: 1.1em;
+}
+.progress-image-count {
+  color: var(--t1) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.12em !important;
+}
+.progress-bar-wrap {
+  width: 100%; height: 2px;
+  background: rgba(201,168,76,0.12);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 1px;
+  width: 0%;
+  transition: width 0.4s ease;
+}
+.progress-prompt {
+  font-size: 9px !important;
+  letter-spacing: 0.08em !important;
+  color: var(--t3) !important;
+  text-transform: none !important;
+  line-height: 1.5;
+  max-width: 560px;
+  word-break: break-word;
+  font-style: italic;
+}
+
+/* ── Pixelated reveal on card images after generation ────────────────────── */
+@keyframes pixelReveal {
+  0%   { filter: blur(32px) brightness(1.6); opacity: 0; }
+  25%  { filter: blur(16px) brightness(1.3); opacity: 0.5; }
+  50%  { filter: blur(8px)  brightness(1.1); opacity: 0.8; }
+  75%  { filter: blur(3px)  brightness(1.0); opacity: 0.95; }
+  100% { filter: blur(0)    brightness(1.0); opacity: 1; }
+}
+.desktop-thumb.pixel-reveal {
+  animation: pixelReveal 1.6s steps(4, end) forwards;
 }
 
 /* ── Spinner ─────────────────────────────────────────────────────────────── */

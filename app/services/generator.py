@@ -22,6 +22,12 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+_progress: dict = {"desktop_current": 0, "desktop_total": 0, "image_current": 0, "image_total": 0, "label": "", "prompt": ""}
+
+
+def get_progress() -> dict:
+    return dict(_progress)
+
 
 async def last_generation_date() -> Optional[date]:
     """Return the date of the most recent wallpaper generation, queried from the DB."""
@@ -117,6 +123,7 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
     produces a unique image per active monitor, mode=repeated shares one image.
     Returns True on success.
     """
+    global _progress
     cfg = _load_config()
     workflow_template = _load_workflow()
     if workflow_template is None:
@@ -126,6 +133,14 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
     if not await comfyui_process.is_running():
         logger.info("ComfyUI not available on port %s — skipping", cfg.get("comfyui_port", 8188))
         return False
+
+    # Update desktop label (generate_all sets desktop_current/total before calling us)
+    if _progress["desktop_total"] == 0:
+        _progress["desktop_current"] = 1
+        _progress["desktop_total"] = 1
+    _progress["label"] = desktop_info.name
+    _progress["image_current"] = 0
+    _progress["image_total"] = 0
 
     async with AsyncSessionLocal() as session:
         desktop = await _get_or_create_desktop(session, desktop_info)
@@ -168,6 +183,9 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
             else:
                 db_prompt_id, prompt_text = await _get_active_prompt(session, desktop.id, default_prompt)
 
+        # Store resolved prompt in progress so frontend can display it
+        _progress["prompt"] = (prompt_text or "")[:400]
+
         # ── Determine per-monitor mode ────────────────────────────────────────
         detected = await asyncio.to_thread(get_monitors)
         configs_map = {c.monitor_device_path: c for c in desktop.monitor_configs}
@@ -199,7 +217,9 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
         output_dir = cfg.get("output_dir", os.path.join(BASE_DIR, "output"))
         generated_pairs: list[tuple[str | None, str]] = []
 
-        for target_path in targets:
+        _progress["image_total"] = len(targets)
+        for img_idx, target_path in enumerate(targets):
+            _progress["image_current"] = img_idx + 1
             image_info = await _generate_one_image(workflow_template, cfg, prompt_text)
             if image_info is None:
                 return False
@@ -288,9 +308,14 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
 
 async def generate_all() -> dict[str, bool]:
     """Generate wallpapers for all virtual desktops. Returns {guid: success}."""
+    global _progress
     desktops = get_desktops()
+    total = len(desktops)
+    _progress = {"desktop_current": 0, "desktop_total": total, "image_current": 0, "image_total": 0, "label": "", "prompt": ""}
     results: dict[str, bool] = {}
-    for desktop_info in desktops:
+    for i, desktop_info in enumerate(desktops):
+        _progress["desktop_current"] = i + 1
+        _progress["label"] = desktop_info.name
         logger.info("Generating for desktop: %s (%s)", desktop_info.name, desktop_info.guid)
         results[desktop_info.guid] = await generate_for_desktop(desktop_info)
     return results

@@ -82,10 +82,6 @@ async def get_config():
     return {
         "schedule_cron": cfg.get("schedule_cron"),
         "comfyui_port": cfg.get("comfyui_port", 8188),
-        "positive_prompt_node_id": cfg.get("positive_prompt_node_id"),
-        "negative_prompt_node_id": cfg.get("negative_prompt_node_id"),
-        "default_prompt": cfg.get("default_prompt"),
-        "negative_prompt": cfg.get("negative_prompt", ""),
         "claude_path": cfg.get("claude_path", "claude"),
     }
 
@@ -94,9 +90,7 @@ async def get_config():
 async def save_config(body: dict):
     cfg = load_config()
     allowed = {
-        "schedule_cron", "comfyui_port", "positive_prompt_node_id",
-        "negative_prompt_node_id", "default_prompt", "negative_prompt",
-        "claude_path",
+        "schedule_cron", "comfyui_port", "claude_path",
     }
     for key in allowed:
         if key in body:

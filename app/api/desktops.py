@@ -155,6 +155,40 @@ async def set_theme(guid: str, body: ThemeBody, db: AsyncSession = Depends(get_d
     }
 
 
+class RefineThemeBody(BaseModel):
+    instruction: str
+
+
+@router.post("/{guid}/theme/refine")
+async def refine_theme(guid: str, body: RefineThemeBody, db: AsyncSession = Depends(get_db)):
+    """Use Claude to create or update the desktop theme from a natural-language instruction."""
+    from app.services.prompt_generator import refine_theme as _refine_theme
+
+    desktop = (await db.execute(
+        select(Desktop).where(Desktop.guid == guid)
+    )).scalar_one_or_none()
+
+    current_theme = desktop.theme if desktop else None
+
+    new_theme = await _refine_theme(current_theme, body.instruction.strip())
+    if new_theme is None:
+        raise HTTPException(status_code=502, detail="Claude did not return a theme. Check that the Claude CLI is configured.")
+
+    if not desktop:
+        from app.services.desktop_detector import get_desktops as _get_desktops
+        infos = {d.guid: d for d in _get_desktops()}
+        info = infos.get(guid)
+        if not info:
+            raise HTTPException(status_code=404, detail="Desktop GUID not found")
+        desktop = Desktop(guid=info.guid, name=info.name, display_order=info.index)
+        db.add(desktop)
+        await db.flush()
+
+    desktop.theme = new_theme
+    await db.commit()
+    return {"guid": guid, "theme": new_theme}
+
+
 @router.delete("/{guid}/theme")
 async def clear_theme(guid: str, db: AsyncSession = Depends(get_db)):
     """Clear the theme for a desktop, reverting to manual prompt mode."""

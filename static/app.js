@@ -280,9 +280,20 @@ function openPromptModal(guid, name) {
   modalGuid = guid;
   const desktop = desktops.find(d => d.guid === guid);
   document.getElementById("modal-desktop-name").textContent = name;
-  document.getElementById("modal-theme-input").value = desktop?.theme || "";
+  const currentThemeEl = document.getElementById("modal-current-theme");
+  const theme = desktop?.theme || "";
+  if (theme) {
+    currentThemeEl.textContent = theme;
+    currentThemeEl.style.display = "block";
+  } else {
+    currentThemeEl.style.display = "none";
+  }
+  const inputEl = document.getElementById("modal-instruction-input");
+  inputEl.value = "";
+  inputEl.onkeydown = e => { if (e.key === "Enter") saveModal(); };
+  document.getElementById("modal-error").style.display = "none";
   document.getElementById("prompt-modal").style.display = "flex";
-  setTimeout(() => document.getElementById("modal-theme-input").focus(), 50);
+  setTimeout(() => inputEl.focus(), 50);
 }
 
 function closePromptModal(e) {
@@ -293,18 +304,27 @@ function closePromptModal(e) {
 
 async function saveModal() {
   if (!modalGuid) return;
+  const instruction = document.getElementById("modal-instruction-input").value.trim();
+  if (!instruction) return;
   const btn = document.getElementById("modal-save-btn");
+  const errorEl = document.getElementById("modal-error");
   btn.disabled = true;
-  const theme = document.getElementById("modal-theme-input").value.trim();
+  btn.textContent = "Asking Claude…";
+  errorEl.style.display = "none";
   try {
-    await api(`/api/desktops/${modalGuid}/theme`, "POST", { theme });
+    const result = await api(`/api/desktops/${modalGuid}/theme/refine`, "POST", { instruction });
+    // Update cached theme so re-opening the modal shows the new value
+    const desktop = desktops.find(d => d.guid === modalGuid);
+    if (desktop) desktop.theme = result.theme;
     document.getElementById("prompt-modal").style.display = "none";
     modalGuid = null;
     loadDesktops();
   } catch (e) {
-    alert("Failed to save: " + e.message);
+    errorEl.textContent = "Claude failed: " + e.message;
+    errorEl.style.display = "block";
   } finally {
     btn.disabled = false;
+    btn.textContent = "Ask Claude";
   }
 }
 
@@ -454,10 +474,7 @@ async function loadConfig() {
   try {
     const cfg = await api("/api/config");
     document.getElementById("cfg-cron").value           = cfg.schedule_cron ?? "";
-    document.getElementById("cfg-default-prompt").value = cfg.default_prompt ?? "";
-    document.getElementById("cfg-negative-prompt").value= cfg.negative_prompt ?? "";
-    document.getElementById("cfg-pos-node").value       = cfg.positive_prompt_node_id ?? "";
-    document.getElementById("cfg-neg-node").value       = cfg.negative_prompt_node_id ?? "";
+
     document.getElementById("cfg-comfyui-port").value   = cfg.comfyui_port ?? 8188;
     document.getElementById("cfg-claude-path").value    = cfg.claude_path ?? "";
   } catch {}
@@ -471,10 +488,6 @@ async function saveSettings() {
   try {
     await api("/api/config", "POST", {
       schedule_cron:           document.getElementById("cfg-cron").value,
-      default_prompt:          document.getElementById("cfg-default-prompt").value,
-      negative_prompt:         document.getElementById("cfg-negative-prompt").value,
-      positive_prompt_node_id: document.getElementById("cfg-pos-node").value || null,
-      negative_prompt_node_id: document.getElementById("cfg-neg-node").value || null,
       comfyui_port:            parseInt(document.getElementById("cfg-comfyui-port").value, 10) || 8188,
       claude_path:             document.getElementById("cfg-claude-path").value.trim() || null,
     });

@@ -109,3 +109,80 @@ async def generate_prompt_for_desktop(desktop, today: date) -> str | None:
 
     logger.info("AI prompt for %s: %s", desktop.guid, first_line[:80])
     return first_line
+
+
+REFINE_THEME_TEMPLATE = """You are helping a user manage wallpaper themes for their desktop.
+
+Current theme description:
+---
+{current_theme}
+---
+
+User instruction: {instruction}
+
+Rewrite the theme description to reflect the instruction. Keep the same style (a rich, evocative description of visual world, mood, palette, and references). Output ONLY the updated theme text — no explanation, no markdown, no quotes, no preamble."""
+
+CREATE_THEME_TEMPLATE = """You are helping a user set up a wallpaper theme for their desktop.
+
+User request: {instruction}
+
+Write a rich wallpaper theme description based on this request. The description should cover visual world, mood, color palette, atmosphere, and style references. Output ONLY the theme text — no explanation, no markdown, no quotes, no preamble."""
+
+
+async def refine_theme(current_theme: str | None, instruction: str) -> str | None:
+    """
+    Calls `claude -p` to create or update a desktop theme description.
+    If current_theme is set, rewrites it per the instruction.
+    If current_theme is None, generates a fresh theme from the instruction.
+    Returns the updated theme string, or None on failure.
+    """
+    claude = _claude_path()
+    if not claude:
+        logger.error("claude CLI not configured — set claude_path in config.json")
+        return None
+
+    if current_theme:
+        meta = REFINE_THEME_TEMPLATE.format(
+            current_theme=current_theme,
+            instruction=instruction,
+        )
+    else:
+        meta = CREATE_THEME_TEMPLATE.format(instruction=instruction)
+
+    if claude.lower().endswith((".cmd", ".bat")):
+        args = ["cmd", "/c", claude, "-p"]
+    else:
+        args = [claude, "-p"]
+
+    def _run_claude():
+        return subprocess.run(
+            args,
+            input=meta.encode("utf-8"),
+            capture_output=True,
+            timeout=60,
+        )
+
+    try:
+        completed = await asyncio.to_thread(_run_claude)
+    except subprocess.TimeoutExpired:
+        logger.error("claude -p timed out during theme refine")
+        return None
+    except Exception as e:
+        logger.error("claude -p error during theme refine (%s): %s", type(e).__name__, e)
+        return None
+
+    if completed.returncode != 0:
+        logger.error(
+            "claude -p exit %d during theme refine: %s",
+            completed.returncode,
+            completed.stderr.decode(errors="replace").strip(),
+        )
+        return None
+
+    result = completed.stdout.decode(errors="replace").strip()
+    if not result:
+        logger.error("claude -p returned empty output during theme refine")
+        return None
+
+    logger.info("Refined theme: %s", result[:80])
+    return result

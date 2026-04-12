@@ -118,7 +118,7 @@ async def _poll_and_generate():
     if not await comfyui_process.is_running():
         return
 
-    last = last_generation_date()
+    last = await last_generation_date()
     if last is not None and last >= date.today():
         return  # Already generated today
 

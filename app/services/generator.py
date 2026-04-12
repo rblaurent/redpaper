@@ -10,10 +10,9 @@ import random
 from datetime import datetime, date
 from typing import Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
 from app.database import AsyncSessionLocal, Desktop, Prompt, Wallpaper
 from app.services import comfyui_client, comfyui_process, wallpaper_setter
 from app.services.desktop_detector import get_desktops, get_current_desktop_guid, DesktopInfo
@@ -23,11 +22,15 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-_last_generated: Optional[date] = None
 
-
-def last_generation_date() -> Optional[date]:
-    return _last_generated
+async def last_generation_date() -> Optional[date]:
+    """Return the date of the most recent wallpaper generation, queried from the DB."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(func.max(Wallpaper.generated_at)))
+        last_dt = result.scalar_one_or_none()
+        if last_dt is None:
+            return None
+        return last_dt.date()
 
 
 def _load_config() -> dict:
@@ -285,13 +288,11 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
 
 async def generate_all() -> dict[str, bool]:
     """Generate wallpapers for all virtual desktops. Returns {guid: success}."""
-    global _last_generated
     desktops = get_desktops()
     results: dict[str, bool] = {}
     for desktop_info in desktops:
         logger.info("Generating for desktop: %s (%s)", desktop_info.name, desktop_info.guid)
         results[desktop_info.guid] = await generate_for_desktop(desktop_info)
-    _last_generated = date.today()
     return results
 
 

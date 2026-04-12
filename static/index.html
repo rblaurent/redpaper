@@ -68,24 +68,7 @@
         <input type="text" id="cfg-cron" placeholder="0 8 * * *" class="glass-input" />
         <p class="field-note">e.g. <code>0 8 * * *</code> = every day at 08:00</p>
       </div>
-      <div class="field-group">
-        <label>Default prompt</label>
-        <textarea id="cfg-default-prompt" rows="3" class="glass-input"></textarea>
-      </div>
-      <div class="field-group">
-        <label>Negative prompt</label>
-        <textarea id="cfg-negative-prompt" rows="2" class="glass-input"></textarea>
-      </div>
-      <div class="field-row">
-        <div class="field-group">
-          <label>Positive node ID</label>
-          <input type="text" id="cfg-pos-node" placeholder="6" class="glass-input" />
-        </div>
-        <div class="field-group">
-          <label>Negative node ID</label>
-          <input type="text" id="cfg-neg-node" placeholder="130" class="glass-input" />
-        </div>
-      </div>
+
       <div class="field-group">
         <label>Claude CLI path</label>
         <input type="text" id="cfg-claude-path" class="glass-input" placeholder="claude  or  C:/path/to/claude.cmd" />
@@ -147,17 +130,18 @@
   <div id="prompt-modal" class="modal-backdrop" style="display:none" onclick="closePromptModal(event)">
     <div class="modal-box">
       <div class="modal-header">
-        <h3 class="modal-title">Theme Prompt</h3>
+        <h3 class="modal-title">Edit Theme</h3>
         <button class="icon-btn" onclick="closePromptModal()">
           <svg width="14" height="14" viewBox="0 0 384 512" fill="currentColor"><path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z"/></svg>
         </button>
       </div>
       <p class="modal-desktop-name" id="modal-desktop-name"></p>
-      <textarea id="modal-theme-input" class="glass-input modal-textarea" rows="6"
-        placeholder="Describe the visual world for this desktop — theme, style, mood, palette, references… Claude will generate a fresh specific image prompt from this each day."></textarea>
+      <div id="modal-current-theme" class="modal-current-theme" style="display:none"></div>
+      <input id="modal-instruction-input" class="glass-input modal-instruction" type="text"
+        placeholder="e.g. make it darker, add more neon, shift to autumn forest…" />
+      <p id="modal-error" class="modal-error" style="display:none"></p>
       <div class="modal-footer">
-        <button class="glass-btn-outline" onclick="closePromptModal()">Cancel</button>
-        <button class="glass-btn-primary" id="modal-save-btn" onclick="saveModal()">Save</button>
+        <button class="glass-btn-primary" id="modal-save-btn" onclick="saveModal()">Ask Claude</button>
       </div>
     </div>
   </div>

@@ -714,6 +714,14 @@ html, body {
   color: var(--gold); margin-top: -10px;
 }
 .modal-textarea { min-height: 120px; font-size: 13px; line-height: 1.6; }
+.modal-current-theme {
+  font-size: 12px; line-height: 1.5; color: var(--muted); background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+  padding: 10px 12px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.modal-instruction { font-size: 13px; }
+.modal-error { font-size: 12px; color: #f87171; margin: 0; }
 .modal-footer { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
 
 /* ── Theme / AI prompt UI ────────────────────────────────────────────────── */

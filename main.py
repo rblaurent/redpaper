@@ -26,10 +26,12 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _log_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 _root = logging.getLogger()
 _root.setLevel(logging.INFO)
-# Console handler
-_ch = logging.StreamHandler()
-_ch.setFormatter(_log_fmt)
-_root.addHandler(_ch)
+# Console handler — skip if running without a console (e.g. pythonw)
+import sys as _sys
+if _sys.stderr is not None:
+    _ch = logging.StreamHandler()
+    _ch.setFormatter(_log_fmt)
+    _root.addHandler(_ch)
 # File handler — always write to server.log next to main.py
 from logging.handlers import RotatingFileHandler as _RFH
 _fh = _RFH(os.path.join(BASE_DIR, "server.log"), maxBytes=5 * 1024 * 1024, backupCount=2)

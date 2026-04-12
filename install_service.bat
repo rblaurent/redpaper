@@ -18,16 +18,8 @@ if %errorlevel% equ 0 (
     python service.py remove >nul 2>&1
 )
 
-:: Copy launcher to %LOCALAPPDATA%\redpaper so it runs from a local path at logon
-:: (the install dir may be on a mapped drive not yet available at logon time)
-set LAUNCHER_DIR=%LOCALAPPDATA%\redpaper
-if not exist "%LAUNCHER_DIR%" mkdir "%LAUNCHER_DIR%"
-copy /y "%~dp0launcher.vbs" "%LAUNCHER_DIR%\launcher.vbs" >nul
-:: Write the install path so the launcher can find main.py
-echo %~dp0> "%LAUNCHER_DIR%\redpaper.path"
-
 echo Registering redpaper startup task...
-schtasks /create /tn "redpaper" /tr "wscript.exe \"%LAUNCHER_DIR%\launcher.vbs\"" /sc onlogon /ru "%USERDOMAIN%\%USERNAME%" /f /delay 0000:30
+schtasks /create /tn "redpaper" /tr "\"%PYTHONW%\" \"%~dp0main.py\"" /sc onlogon /ru "%USERDOMAIN%\%USERNAME%" /f /delay 0000:30
 if %errorlevel% neq 0 (
     echo Failed to register startup task.
     pause
@@ -35,7 +27,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Starting redpaper now...
-start "" wscript.exe "%LAUNCHER_DIR%\launcher.vbs"
+start "" "%PYTHONW%" "%~dp0main.py"
 
 :: Wait for server to start (launcher waits for drive, then starts python)
 echo Waiting for server to start...

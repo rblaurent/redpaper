@@ -103,6 +103,8 @@ async def _generate_one_image(
             if "seed" in inputs:
                 inputs["seed"] = seed_value
 
+    logger.info("Submitting workflow — seed=%d prompt=%.80s", seed_value, prompt_text)
+
     try:
         comfy_id = await comfyui_client.submit_workflow(workflow)
     except Exception as e:

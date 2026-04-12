@@ -43,11 +43,7 @@ Edit `config.json`:
   "claude_path": "C:/path/to/claude.cmd",
   "comfyui_port": 8188,
   "output_dir": "C:/path/to/redpaper/output",
-  "positive_prompt_node_id": "6",
-  "negative_prompt_node_id": "130",
-  "seed_node_id": "31",
-  "default_prompt": "a breathtaking landscape, cinematic lighting, ultra detailed, 4k wallpaper",
-  "negative_prompt": ""
+  "seed_node_id": "31"
 }
 ```
 
@@ -58,11 +54,11 @@ Edit `config.json`:
 | `claude_path` | Full path to `claude.cmd` (find it with `where claude`) |
 | `comfyui_port` | ComfyUI API port |
 | `output_dir` | Where generated wallpapers are saved |
-| `positive_prompt_node_id` | ComfyUI workflow node ID for the positive prompt |
-| `negative_prompt_node_id` | ComfyUI workflow node ID for the negative prompt |
-| `seed_node_id` | ComfyUI workflow node ID for the seed |
+| `seed_node_id` | ComfyUI workflow node ID for the seed (for randomisation) |
 
-To find the node IDs, open your workflow in ComfyUI and check the node numbers for your positive prompt, negative prompt, and seed inputs.
+### Workflow setup
+
+redpaper injects the AI-generated prompt into your ComfyUI workflow via a `{{prompt}}` placeholder. Open `workflow.json` and replace the text content of your positive prompt node with `{{prompt}}`. The seed node ID tells redpaper which node to randomise on each run — find it by checking node numbers in ComfyUI's web UI.
 
 ### 3. Install as a Windows Service (recommended)
 

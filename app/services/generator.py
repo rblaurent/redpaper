@@ -44,13 +44,14 @@ def _load_config() -> dict:
         return json.load(f)
 
 
-def _load_workflow() -> dict | None:
+def _load_workflow() -> str | None:
+    """Return the raw workflow.json text, or None if missing."""
     path = os.path.join(BASE_DIR, "workflow.json")
     if not os.path.isfile(path):
         logger.warning("workflow.json not found at %s", path)
         return None
     with open(path) as f:
-        return json.load(f)
+        return f.read()
 
 
 async def _get_active_prompt(session: AsyncSession, desktop_id: int, default: str) -> tuple[int | None, str]:
@@ -81,7 +82,7 @@ async def _get_or_create_desktop(session: AsyncSession, info: DesktopInfo) -> De
 
 
 async def _generate_one_image(
-    workflow_template: dict,
+    workflow_template: str,
     cfg: dict,
     prompt_text: str,
 ) -> tuple[str, str] | None:
@@ -89,17 +90,17 @@ async def _generate_one_image(
     Submit one ComfyUI generation (with a fresh random seed) and return
     (filename, subfolder) of the output image, or None on failure.
     """
-    # Replace {{prompt}} placeholder anywhere in the workflow JSON
-    workflow_str = json.dumps(workflow_template)
-    workflow_str = workflow_str.replace("{{prompt}}", prompt_text)
+    # Replace {{prompt}} — use json.dumps to safely escape any special characters
+    prompt_json_value = json.dumps(prompt_text)  # produces: "the prompt text"
+    workflow_str = workflow_template.replace('"{{prompt}}"', prompt_json_value)
     workflow = json.loads(workflow_str)
 
-    # Replace {{seed}} placeholder with a real integer (must not be a string for ComfyUI)
+    # Randomise every seed field in the workflow (works regardless of placeholder value)
     seed_value = random.randint(0, 2**32 - 1)
     for node in workflow.values():
         if isinstance(node, dict):
             inputs = node.get("inputs", {})
-            if inputs.get("seed") == "{{seed}}":
+            if "seed" in inputs:
                 inputs["seed"] = seed_value
 
     try:

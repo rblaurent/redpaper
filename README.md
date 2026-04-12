@@ -56,12 +56,7 @@ Generated wallpapers are saved to an `output/` folder next to the install.
 
 ### Workflow setup
 
-redpaper injects values into your ComfyUI workflow via placeholders:
-
-- `{{prompt}}` — replaced with the AI-generated prompt text; put this in your positive prompt node's text field
-- `{{seed}}` — replaced with a random seed on each run; put this as the seed value in your sampler node
-
-Export your workflow from ComfyUI as API format (`workflow.json`) and place it in the repo root.
+redpaper injects the AI-generated prompt into your workflow via a `{{prompt}}` placeholder. Export your workflow from ComfyUI as API format (`workflow.json`), place it in the repo root, and replace the text value of your positive prompt node with `{{prompt}}`. The seed is randomised automatically on every run — no configuration needed.
 
 ### 3. Install as a Windows Service (recommended)
 

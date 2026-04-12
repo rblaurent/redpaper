@@ -34,6 +34,12 @@ pip install -r requirements.txt
 
 ### 2. Configure
 
+Copy the example config and edit it:
+
+```bash
+cp config.example.json config.json
+```
+
 Edit `config.json`:
 
 ```json

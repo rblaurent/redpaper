@@ -15,6 +15,9 @@ build/
 # Generated wallpaper images
 output/
 
+# Local config (machine-specific paths)
+config.json
+
 # Secrets / local config overrides
 .env
 

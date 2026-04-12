@@ -16,7 +16,10 @@ logger = logging.getLogger(__name__)
 _scheduler: AsyncIOScheduler | None = None
 JOB_ID = "daily_generate"
 POLL_JOB_ID = "comfyui_poll"
+SWITCH_JOB_ID = "desktop_switch_watcher"
 POLL_INTERVAL_MINUTES = 5
+
+_last_desktop_guid: str | None = None
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -44,6 +47,63 @@ def get_scheduler() -> AsyncIOScheduler:
     if _scheduler is None:
         _scheduler = AsyncIOScheduler()
     return _scheduler
+
+
+async def _watch_desktop_switch():
+    """
+    Runs every 2 seconds. Detects virtual desktop switches and immediately
+    applies the active wallpaper(s) for the newly-active desktop via COM.
+    This is how inactive-desktop wallpapers get applied — no keyboard switching needed.
+    """
+    global _last_desktop_guid
+    import asyncio
+
+    try:
+        from app.services.desktop_detector import get_current_desktop_guid
+        current_guid = get_current_desktop_guid()   # single registry read, ~1 µs — no thread needed
+    except Exception:
+        return
+
+    if not current_guid or current_guid == _last_desktop_guid:
+        return
+
+    prev = _last_desktop_guid
+    _last_desktop_guid = current_guid
+
+    if prev is None:
+        # First poll after startup — just record, don't apply.
+        return
+
+    logger.info("Desktop switched → %s, applying wallpapers", current_guid)
+
+    try:
+        from sqlalchemy import select
+        from app.database import AsyncSessionLocal, Desktop, Wallpaper
+        from app.services.wallpaper_setter import set_wallpapers_for_desktop
+
+        async with AsyncSessionLocal() as session:
+            desktop = (await session.execute(
+                select(Desktop).where(Desktop.guid == current_guid)
+            )).scalar_one_or_none()
+            if not desktop:
+                return
+
+            wallpapers = (await session.execute(
+                select(Wallpaper).where(
+                    Wallpaper.desktop_id == desktop.id,
+                    Wallpaper.is_active == True,
+                )
+            )).scalars().all()
+            if not wallpapers:
+                return
+
+            pairs = [(wp.monitor_device_path, wp.file_path) for wp in wallpapers]
+
+        await asyncio.to_thread(set_wallpapers_for_desktop, current_guid, pairs)
+        logger.info("Applied %d wallpaper(s) for desktop %s after switch", len(pairs), current_guid)
+
+    except Exception as exc:
+        logger.warning("Desktop-switch wallpaper apply failed: %s", exc)
 
 
 async def _poll_and_generate():
@@ -88,6 +148,14 @@ def start_scheduler():
         id=POLL_JOB_ID,
         replace_existing=True,
         name="ComfyUI availability poll",
+    )
+
+    scheduler.add_job(
+        _watch_desktop_switch,
+        trigger=IntervalTrigger(seconds=2),
+        id=SWITCH_JOB_ID,
+        replace_existing=True,
+        name="Desktop switch watcher",
     )
 
     scheduler.start()

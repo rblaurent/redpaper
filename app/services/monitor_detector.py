@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 class MonitorInfo:
     index: int
     device_path: str  # e.g. "\\.\DISPLAY1\Monitor0", or "" for fallback
+    width: int = 1920
+    height: int = 1080
+    current_wallpaper: str | None = None  # Windows-reported path on the current virtual desktop
 
 
 def get_monitors() -> list[MonitorInfo]:
@@ -37,14 +40,24 @@ def get_monitors() -> list[MonitorInfo]:
             wobj = comtypes.client.CreateObject(
                 ws.CLSID_DesktopWallpaper, interface=ws.IDesktopWallpaper
             )
-            count = ctypes.c_uint(0)
-            wobj.GetMonitorDevicePathCount(ctypes.byref(count))
-            n = count.value
+            # comtypes returns ["out"] params as the call's return value — don't pass them manually
+            n = wobj.GetMonitorDevicePathCount()
             monitors: list[MonitorInfo] = []
             for i in range(n):
-                path = ctypes.c_wchar_p()
-                wobj.GetMonitorDevicePathAt(i, ctypes.byref(path))
-                monitors.append(MonitorInfo(index=i, device_path=path.value or ""))
+                path = wobj.GetMonitorDevicePathAt(i) or ""
+                w, h = 1920, 1080
+                try:
+                    rect = wobj.GetMonitorRECT(path)
+                    w = abs(rect.right  - rect.left) or 1920
+                    h = abs(rect.bottom - rect.top)  or 1080
+                except Exception:
+                    pass
+                current_wp = None
+                try:
+                    current_wp = wobj.GetWallpaper(path) or None
+                except Exception:
+                    pass
+                monitors.append(MonitorInfo(index=i, device_path=path, width=w, height=h, current_wallpaper=current_wp))
             return monitors if monitors else [MonitorInfo(index=0, device_path="")]
         finally:
             if we_inited:

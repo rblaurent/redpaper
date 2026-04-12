@@ -14,12 +14,14 @@ monitors_router = APIRouter(prefix="/api", tags=["monitors"])
 
 @router.get("")
 async def list_desktops(db: AsyncSession = Depends(get_db)):
-    """Return all virtual desktops with their currently active wallpaper."""
-    detected = get_desktops()
+    """Return all virtual desktops with their currently active wallpaper and monitor configs."""
+    from app.services.monitor_detector import get_monitors as _get_monitors
+    detected_vdesktops = get_desktops()
     current_guid = get_current_desktop_guid()
+    detected_monitors = await asyncio.to_thread(_get_monitors)
     result = []
 
-    for info in detected:
+    for info in detected_vdesktops:
         # Look up active wallpaper from DB
         desktop_row = (await db.execute(
             select(Desktop).where(Desktop.guid == info.guid)
@@ -67,6 +69,39 @@ async def list_desktops(db: AsyncSession = Depends(get_db)):
                     "created_at": pr.created_at.isoformat(),
                 }
 
+        # Build per-monitor config (detected monitors merged with saved configs)
+        cfg_map: dict[str, MonitorConfig] = {}
+        if desktop_row:
+            cfg_rows = (await db.execute(
+                select(MonitorConfig).where(MonitorConfig.desktop_id == desktop_row.id)
+            )).scalars().all()
+            cfg_map = {c.monitor_device_path: c for c in cfg_rows}
+
+        wp_by_path = {}
+        shared_wp = None
+        for wp in active_wallpapers:
+            if wp["monitor_device_path"]:
+                wp_by_path[wp["monitor_device_path"]] = wp
+            elif shared_wp is None:
+                shared_wp = wp
+
+        monitors_out = []
+        for mon in detected_monitors:
+            cfg = cfg_map.get(mon.device_path)
+            mon_wp = wp_by_path.get(mon.device_path) or shared_wp
+            monitors_out.append({
+                "monitor_device_path": mon.device_path,
+                "monitor_index": mon.index,
+                "width": mon.width,
+                "height": mon.height,
+                "mode": cfg.mode if cfg else "shared",
+                "active_wallpaper": mon_wp,
+                # Only use the Windows-reported wallpaper for the currently active desktop.
+                # GetWallpaper() always reflects the active desktop, so using it for
+                # inactive desktops would show the wrong (current desktop's) images.
+                "current_wallpaper_path": mon.current_wallpaper if info.guid == current_guid else None,
+            })
+
         result.append({
             "index": info.index,
             "guid": info.guid,
@@ -79,6 +114,7 @@ async def list_desktops(db: AsyncSession = Depends(get_db)):
             "theme_style": desktop_row.theme_style if desktop_row else None,
             "workspace_path": desktop_row.workspace_path if desktop_row else None,
             "wallpaper_mode": desktop_row.wallpaper_mode if desktop_row else "repeated",
+            "monitors": monitors_out,
         })
 
     return result
@@ -140,7 +176,7 @@ async def list_monitors():
     """Return all currently connected physical monitors."""
     from app.services.monitor_detector import get_monitors
     monitors = await asyncio.to_thread(get_monitors)
-    return [{"index": m.index, "device_path": m.device_path} for m in monitors]
+    return [{"index": m.index, "device_path": m.device_path, "width": m.width, "height": m.height, "current_wallpaper": m.current_wallpaper} for m in monitors]
 
 
 @router.get("/{guid}/monitors")
@@ -169,20 +205,21 @@ async def get_desktop_monitors(guid: str, db: AsyncSession = Depends(get_db)):
         monitors.append({
             "monitor_device_path": mon.device_path,
             "monitor_index": mon.index,
-            "disabled": cfg.disabled if cfg else False,
+            "width": mon.width,
+            "height": mon.height,
+            "mode": cfg.mode if cfg else "shared",
         })
 
-    return {"wallpaper_mode": wallpaper_mode, "monitors": monitors}
+    return {"monitors": monitors}
 
 
 class MonitorConfigItem(BaseModel):
     monitor_device_path: str
     monitor_index: int
-    disabled: bool = False
+    mode: str = "shared"  # "off" | "individual" | "shared"
 
 
 class MonitorConfigBody(BaseModel):
-    mode: str = "repeated"
     monitors: list[MonitorConfigItem]
 
 
@@ -192,7 +229,7 @@ async def update_desktop_monitors(
     body: MonitorConfigBody,
     db: AsyncSession = Depends(get_db),
 ):
-    """Upsert monitor config for a desktop and set its wallpaper mode."""
+    """Save per-monitor mode config for a desktop."""
     desktop = (await db.execute(
         select(Desktop).where(Desktop.guid == guid)
     )).scalar_one_or_none()
@@ -206,19 +243,19 @@ async def update_desktop_monitors(
         db.add(desktop)
         await db.flush()
 
-    desktop.wallpaper_mode = body.mode if body.mode in ("repeated", "original") else "repeated"
-
     # Replace all monitor configs with the submitted list
     await db.execute(
         delete(MonitorConfig).where(MonitorConfig.desktop_id == desktop.id)
     )
     for item in body.monitors:
+        mode = item.mode if item.mode in ("off", "individual", "shared") else "shared"
         db.add(MonitorConfig(
             desktop_id=desktop.id,
             monitor_device_path=item.monitor_device_path,
             monitor_index=item.monitor_index,
-            disabled=item.disabled,
+            disabled=(mode == "off"),
+            mode=mode,
         ))
 
     await db.commit()
-    return {"saved": len(body.monitors), "mode": desktop.wallpaper_mode}
+    return {"saved": len(body.monitors)}

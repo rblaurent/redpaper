@@ -142,41 +142,58 @@ async function loadDesktops() {
   }
 }
 
+const MODE_CYCLE  = { shared: 'individual', individual: 'off', off: 'shared' };
+const MODE_LABEL  = { shared: 'Shared', individual: 'Solo', off: 'Off' };
+const MODE_ICON   = {
+  shared:     `<svg width="9" height="9" viewBox="0 0 640 512" fill="currentColor"><path d="M579.8 267.7c56.5-56.5 56.5-148 0-204.5c-50-50-128.8-56.5-186.3-15.4l-1.6 1.1c-14.4 10.3-17.7 30.3-7.4 44.6s30.3 17.7 44.6 7.4l1.6-1.1c32.1-22.9 76-19.3 103.8 8.6c31.5 31.5 31.5 82.5 0 114L422.3 334.8c-31.5 31.5-82.5 31.5-114 0c-27.9-27.9-31.5-71.8-8.6-103.8l1.1-1.6c10.3-14.4 6.9-34.4-7.4-44.6s-34.4-6.9-44.6 7.4l-1.1 1.6C206.5 251.2 213 330 263 380c56.5 56.5 148 56.5 204.5 0L579.8 267.7zM60.2 244.3c-56.5 56.5-56.5 148 0 204.5c50 50 128.8 56.5 186.3 15.4l1.6-1.1c14.4-10.3 17.7-30.3 7.4-44.6s-30.3-17.7-44.6-7.4l-1.6 1.1c-32.1 22.9-76 19.3-103.8-8.6C74 372.1 74 321.1 105.5 289.5L217.7 177.2c31.5-31.5 82.5-31.5 114 0c27.9 27.9 31.5 71.8 8.6 103.8l-1.1 1.6c-10.3 14.4-6.9 34.4 7.4 44.6s34.4 6.9 44.6-7.4l1.1-1.6C433.5 260.8 427 182 377 132c-56.5-56.5-148-56.5-204.5 0L60.2 244.3z"/></svg>`,
+  individual: `<svg width="9" height="9" viewBox="0 0 512 512" fill="currentColor"><path d="M0 96C0 60.7 28.7 32 64 32H448c35.3 0 64 28.7 64 64V416c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V96zm64 0V416H448V96H64z"/></svg>`,
+  off:        `<svg width="9" height="9" viewBox="0 0 384 512" fill="currentColor"><path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/></svg>`,
+};
+
 function makeDesktopCard(d) {
   const card = document.createElement("div");
   card.className = "desktop-card" + (d.is_current ? " is-current" : "");
 
-  const wps = d.active_wallpapers || (d.active_wallpaper ? [d.active_wallpaper] : []);
-  const wp  = wps[0] || null;
+  const monitors = d.monitors || [];
+  const wp = d.active_wallpaper;
 
-  // Multi-thumbnail: show a side-by-side grid when there are multiple distinct images
-  let thumbHtml;
-  const multiMonitor = wps.length > 1 && wps.some(w => w.monitor_device_path !== null);
-  if (multiMonitor) {
-    const cols = wps.length;
-    thumbHtml = `<div class="desktop-thumb-grid" style="grid-template-columns:repeat(${cols},1fr)">
-      ${wps.map(w =>
-        `<img class="desktop-thumb" src="/output/${encodeImagePath(w.file_path)}" alt="" loading="lazy">`
-      ).join("")}
-    </div>`;
-  } else if (wp) {
-    thumbHtml = `<img class="desktop-thumb" src="/output/${encodeImagePath(wp.file_path)}" alt="" loading="lazy">`;
-  } else {
-    thumbHtml = `<div class="desktop-thumb-placeholder">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
-          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-          <polyline points="21,15 16,10 5,21"/>
-        </svg>
-        <span>No wallpaper yet</span>
-      </div>`;
-  }
+  // Main wallpaper thumbnail
+  const mainThumbHtml = wp
+    ? `<img class="desktop-thumb" src="/output/${encodeImagePath(wp.file_path)}" alt="" loading="lazy">`
+    : `<div class="desktop-thumb-placeholder">
+         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity=".18"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg>
+         <span>No wallpaper yet</span>
+       </div>`;
 
-  const genTime = wp
-    ? `Generated ${relativeTime(wp.generated_at)}`
-    : "Not yet generated";
+  // Mini monitor strip — each thumbnail at correct aspect ratio, click to cycle mode
+  const monitorsStripHtml = monitors.length ? `
+    <div class="monitors-strip">
+      ${monitors.map(mon => {
+        const ratio = mon.width && mon.height ? (mon.width / mon.height) : (16 / 9);
+        const mode = mon.mode || 'shared';
+        // Prefer the actual Windows-reported wallpaper; fall back to DB record
+        const wpUrl = mon.current_wallpaper_path
+          ? `/output/${encodeImagePath(mon.current_wallpaper_path)}`
+          : (mon.active_wallpaper ? `/output/${encodeImagePath(mon.active_wallpaper.file_path)}` : null);
+        const imgHtml = wpUrl
+          ? `<img class="mon-thumb-img" src="${wpUrl}" alt="" loading="lazy">`
+          : `<div class="mon-thumb-empty"></div>`;
+        return `
+          <div class="mon-thumb mode-${mode}"
+               style="aspect-ratio:${ratio.toFixed(4)}"
+               data-guid="${d.guid}"
+               data-path="${esc(mon.monitor_device_path)}"
+               data-index="${mon.monitor_index}"
+               onclick="cycleMonitorMode(event)"
+               title="${MODE_LABEL[mode]} — click to cycle">
+            ${imgHtml}
+            <span class="mon-mode-icon">${MODE_ICON[mode]}</span>
+          </div>`;
+      }).join('')}
+    </div>` : '';
 
-  const currentBadge = d.is_current
-    ? `<div class="current-pill">Active</div>` : "";
+  const currentBadge = d.is_current ? `<div class="current-pill">Active</div>` : '';
+  const genTime = wp ? `Generated ${relativeTime(wp.generated_at)}` : "Not yet generated";
 
   const themeText = d.theme
     ? `<span class="prompt-text">${esc(d.theme)}</span>`
@@ -191,7 +208,8 @@ function makeDesktopCard(d) {
 
   card.innerHTML = `
     <div class="desktop-thumb-wrap">
-      ${thumbHtml}
+      ${mainThumbHtml}
+      ${monitorsStripHtml}
       ${currentBadge}
       <div class="desktop-index-badge">Desktop ${d.index + 1}</div>
     </div>
@@ -207,14 +225,50 @@ function makeDesktopCard(d) {
         <button class="icon-btn icon-btn-gold" title="Regenerate" onclick="generateOne('${d.guid}', this)">
           ${ICON_ROTATE}
         </button>
-        <button class="icon-btn" title="Monitor setup" onclick="openMonitorModal('${d.guid}', '${esc(d.name)}')">
-          ${ICON_MONITORS}
-        </button>
         ${wp ? `<button class="icon-btn" title="History" onclick="viewHistory('${d.guid}')">${ICON_CLOCK}</button>` : ""}
       </div>
     </div>`;
 
   return card;
+}
+
+async function cycleMonitorMode(event) {
+  event.stopPropagation();
+  const thumb = event.currentTarget;
+  const guid = thumb.dataset.guid;
+  const path = thumb.dataset.path;
+
+  const desktop = desktops.find(d => d.guid === guid);
+  if (!desktop?.monitors) return;
+
+  const mon = desktop.monitors.find(m => m.monitor_device_path === path);
+  if (!mon) return;
+
+  const oldMode = mon.mode || 'shared';
+  const newMode = MODE_CYCLE[oldMode];
+  mon.mode = newMode;
+
+  // Optimistic UI update
+  thumb.classList.replace(`mode-${oldMode}`, `mode-${newMode}`);
+  thumb.title = `${MODE_LABEL[newMode]} — click to cycle`;
+  const icon = thumb.querySelector('.mon-mode-icon');
+  if (icon) icon.innerHTML = MODE_ICON[newMode];
+
+  try {
+    await api(`/api/desktops/${guid}/monitors`, 'PUT', {
+      monitors: desktop.monitors.map(m => ({
+        monitor_device_path: m.monitor_device_path,
+        monitor_index: m.monitor_index,
+        mode: m.mode || 'shared',
+      })),
+    });
+  } catch (e) {
+    // Revert
+    mon.mode = oldMode;
+    thumb.classList.replace(`mode-${newMode}`, `mode-${oldMode}`);
+    thumb.title = `${MODE_LABEL[oldMode]} — click to cycle`;
+    if (icon) icon.innerHTML = MODE_ICON[oldMode];
+  }
 }
 
 // ── Theme prompt modal ────────────────────────────────────────────────────────

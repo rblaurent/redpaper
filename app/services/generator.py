@@ -165,29 +165,31 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
             else:
                 db_prompt_id, prompt_text = await _get_active_prompt(session, desktop.id, default_prompt)
 
-        # ── Determine active monitors ─────────────────────────────────────────
+        # ── Determine per-monitor mode ────────────────────────────────────────
         detected = await asyncio.to_thread(get_monitors)
         configs_map = {c.monitor_device_path: c for c in desktop.monitor_configs}
 
-        active_monitors = []
+        shared_monitors = []
+        individual_monitors = []
         for mon in detected:
-            cfg_row = configs_map.get(mon.device_path)
-            if cfg_row and cfg_row.disabled:
+            mon_cfg = configs_map.get(mon.device_path)
+            mon_mode = mon_cfg.mode if mon_cfg else "shared"
+            if mon_mode == "off":
                 continue
-            active_monitors.append(mon)
+            elif mon_mode == "individual":
+                individual_monitors.append(mon)
+            else:
+                shared_monitors.append(mon)
 
-        if not active_monitors:
-            logger.warning("All monitors disabled for desktop %s — skipping", desktop_info.guid)
+        if not shared_monitors and not individual_monitors:
+            logger.warning("All monitors off for desktop %s — skipping", desktop_info.guid)
             return False
 
-        mode = desktop.wallpaper_mode or "repeated"
-
-        # ── Build generation targets ──────────────────────────────────────────
-        # targets: list of (monitor_device_path | None) — None = "all active monitors"
-        if mode == "repeated":
-            targets: list[str | None] = [None]
-        else:
-            targets = [mon.device_path for mon in active_monitors]
+        # targets: None = "one shared image"; device_path = "unique image for that monitor"
+        targets: list[str | None] = (
+            ([None] if shared_monitors else []) +
+            [mon.device_path for mon in individual_monitors]
+        )
 
         # ── Generate images ───────────────────────────────────────────────────
         today = date.today().isoformat()
@@ -201,7 +203,8 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
 
             filename, subfolder = image_info
             if target_path is not None:
-                mon_idx = next((m.index for m in active_monitors if m.device_path == target_path), 0)
+                all_active = shared_monitors + individual_monitors
+                mon_idx = next((m.index for m in all_active if m.device_path == target_path), 0)
                 dest_name = f"{desktop_info.guid[:8]}_m{mon_idx}_{filename}"
             else:
                 dest_name = f"{desktop_info.guid[:8]}_{filename}"
@@ -213,33 +216,24 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
             generated_pairs.append((target_path, dest_path))
 
         # ── Update DB ─────────────────────────────────────────────────────────
-        if mode == "repeated":
+        # Deactivate per-slot (NULL = shared image slot; device_path = individual slot)
+        for target_path, _ in generated_pairs:
             await session.execute(
                 update(Wallpaper)
                 .where(
                     Wallpaper.desktop_id == desktop.id,
-                    Wallpaper.monitor_device_path == None,  # noqa: E711
+                    Wallpaper.monitor_device_path == target_path,
                 )
                 .values(is_active=False)
                 .execution_options(synchronize_session=False)
             )
-        else:
-            for target_path, _ in generated_pairs:
-                await session.execute(
-                    update(Wallpaper)
-                    .where(
-                        Wallpaper.desktop_id == desktop.id,
-                        Wallpaper.monitor_device_path == target_path,
-                    )
-                    .values(is_active=False)
-                    .execution_options(synchronize_session=False)
-                )
 
         now = datetime.utcnow()
+        all_active = shared_monitors + individual_monitors
         for target_path, dest_path in generated_pairs:
             mon_index = None
             if target_path is not None:
-                mon_index = next((m.index for m in active_monitors if m.device_path == target_path), None)
+                mon_index = next((m.index for m in all_active if m.device_path == target_path), None)
             session.add(Wallpaper(
                 desktop_id=desktop.id,
                 prompt_id=db_prompt_id,
@@ -265,15 +259,16 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
             current_idx = None
 
         # Build (device_path, file_path) pairs for the setter.
-        # For repeated mode: apply the one image to every active monitor.
-        if mode == "repeated":
-            _, repeated_path = generated_pairs[0]
-            apply_pairs: list[tuple[str | None, str]] = [
-                (mon.device_path if mon.device_path else None, repeated_path)
-                for mon in active_monitors
-            ]
-        else:
-            apply_pairs = list(generated_pairs)
+        # Shared image gets applied to every shared monitor; individual images go to their specific monitor.
+        apply_pairs: list[tuple[str | None, str]] = []
+        shared_path = next((fp for tp, fp in generated_pairs if tp is None), None)
+        if shared_path:
+            for mon in shared_monitors:
+                apply_pairs.append((mon.device_path or None, shared_path))
+        for mon in individual_monitors:
+            indiv_path = next((fp for tp, fp in generated_pairs if tp == mon.device_path), None)
+            if indiv_path:
+                apply_pairs.append((mon.device_path or None, indiv_path))
 
         await asyncio.to_thread(
             wallpaper_setter.set_wallpapers_for_desktop,
@@ -283,8 +278,8 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
             current_index=current_idx,
         )
 
-    logger.info("Generated wallpaper(s) for desktop %s (%s mode, %d image(s))",
-                desktop_info.name, mode, len(generated_pairs))
+    logger.info("Generated wallpaper(s) for desktop %s (%d shared + %d individual monitors, %d image(s))",
+                desktop_info.name, len(shared_monitors), len(individual_monitors), len(generated_pairs))
     return True
 
 

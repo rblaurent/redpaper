@@ -72,7 +72,8 @@ class MonitorConfig(Base):
     desktop_id = Column(Integer, ForeignKey("desktops.id"), nullable=False)
     monitor_device_path = Column(String(256), nullable=False)  # e.g. "\\.\DISPLAY1\Monitor0"
     monitor_index = Column(Integer, nullable=False)             # 0-based, informational
-    disabled = Column(Boolean, nullable=False, default=False)
+    disabled = Column(Boolean, nullable=False, default=False)   # legacy, superseded by mode
+    mode = Column(String(16), nullable=False, default="shared") # "off" | "individual" | "shared"
 
     desktop = relationship("Desktop", back_populates="monitor_configs")
 
@@ -104,8 +105,10 @@ async def init_db():
                 monitor_device_path TEXT NOT NULL,
                 monitor_index INTEGER NOT NULL,
                 disabled INTEGER NOT NULL DEFAULT 0,
+                mode TEXT NOT NULL DEFAULT 'shared',
                 UNIQUE(desktop_id, monitor_device_path)
             )""",
+            "ALTER TABLE monitor_configs ADD COLUMN mode TEXT NOT NULL DEFAULT 'shared'",
         ]:
             try:
                 await conn.execute(text(sql))

@@ -273,20 +273,22 @@ html, body {
     0 0 32px rgba(201,168,76,0.06);
 }
 
-/* Thumbnail */
+/* Thumbnail / monitor preview area */
 .desktop-thumb-wrap {
   position: relative;
   width: 100%;
   aspect-ratio: 16/9;
   overflow: hidden;
-  background: rgba(0,0,0,0.3);
+  background: #080604;
 }
+
+/* Main wallpaper thumbnail */
 .desktop-thumb {
   width: 100%; height: 100%;
   object-fit: cover; display: block;
   transition: transform .6s cubic-bezier(0.22,1,0.36,1);
 }
-.desktop-card:hover .desktop-thumb { transform: scale(1.05); }
+.desktop-card:hover .desktop-thumb { transform: scale(1.04); }
 
 .desktop-thumb-placeholder {
   width: 100%; height: 100%;
@@ -298,6 +300,68 @@ html, body {
 .desktop-thumb-placeholder span {
   font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
 }
+
+/* Monitor mini-thumbnails — strip overlaid at the bottom of the card image */
+.monitors-strip {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  padding: 32px 10px 10px;
+  background: linear-gradient(to top, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.40) 60%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Individual monitor mini-thumbnail — fixed height, width from aspect-ratio (correct ratio) */
+.mon-thumb {
+  position: relative;
+  flex-shrink: 0;
+  height: 68px;       /* fixed height; width is auto via inline aspect-ratio */
+  border-radius: 4px;
+  overflow: hidden;
+  border: 2px solid rgba(255,255,255,0.14);
+  cursor: pointer;
+  pointer-events: all;
+  transition: border-color .2s, opacity .2s, transform .2s;
+}
+.mon-thumb:hover { transform: translateY(-2px); }
+
+/* Mode-based border colour */
+.mon-thumb.mode-shared     { border-color: rgba(122,173,143,0.65); }
+.mon-thumb.mode-individual { border-color: rgba(201,168,76,0.65); }
+.mon-thumb.mode-off        { border-color: rgba(255,255,255,0.10); opacity: 0.38; }
+
+.mon-thumb.mode-shared:hover     { border-color: rgba(122,173,143,1); }
+.mon-thumb.mode-individual:hover { border-color: rgba(201,168,76,1); }
+.mon-thumb.mode-off:hover        { opacity: 0.75; border-color: rgba(255,255,255,0.30); }
+
+.mon-thumb-img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+.mon-thumb.mode-off .mon-thumb-img { filter: grayscale(0.85); }
+
+.mon-thumb-empty {
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.35);
+}
+
+/* Mode icon badge — bottom-right corner of each mini thumbnail */
+.mon-mode-icon {
+  position: absolute;
+  bottom: 2px; right: 2px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.78);
+  border-radius: 2px;
+  padding: 1px 3px;
+  line-height: 1;
+}
+.mon-mode-icon svg { width: 7px; height: 7px; }
+.mon-thumb.mode-shared     .mon-mode-icon { color: #7aad8f; }
+.mon-thumb.mode-individual .mon-mode-icon { color: var(--gold); }
+.mon-thumb.mode-off        .mon-mode-icon { color: var(--t3); }
 
 /* Badges over thumbnail */
 .current-pill {

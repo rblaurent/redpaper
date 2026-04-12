@@ -69,6 +69,14 @@ try:
     CLSID_DesktopWallpaper = comtypes.GUID("{C2CF3110-460E-4FC1-B9D0-8A1C0C9CC4BD}")
     IID_IDesktopWallpaper  = comtypes.GUID("{B92B56A9-8B55-4E14-9A89-0199BBB6F93B}")
 
+    class RECT(ctypes.Structure):
+        _fields_ = [
+            ("left",   ctypes.c_long),
+            ("top",    ctypes.c_long),
+            ("right",  ctypes.c_long),
+            ("bottom", ctypes.c_long),
+        ]
+
     class IDesktopWallpaper(comtypes.IUnknown):
         _case_insensitive_ = True
         _iid_ = IID_IDesktopWallpaper
@@ -85,6 +93,9 @@ try:
                                (["out"], ctypes.POINTER(ctypes.c_wchar_p), "monitorID")),
             comtypes.COMMETHOD([], comtypes.HRESULT, "GetMonitorDevicePathCount",
                                (["out"], ctypes.POINTER(ctypes.c_uint), "count")),
+            comtypes.COMMETHOD([], comtypes.HRESULT, "GetMonitorRECT",
+                               (["in"],  ctypes.c_wchar_p,              "monitorID"),
+                               (["out"], ctypes.POINTER(RECT),          "displayRect")),
         ]
 
     COM_AVAILABLE = True
@@ -187,11 +198,11 @@ def set_wallpaper_for_desktop(
     """
     Set the wallpaper for a specific virtual desktop identified by its GUID.
 
-    1. Write path to per-desktop registry key (persists across reboots).
-    2. Apply immediately:
-         - Current desktop: IDesktopWallpaper COM or SPI fallback.
-         - Inactive desktop (if indices supplied): switch via keyboard,
-           apply, switch back.
+    1. Write path to per-desktop registry key (persists; Windows restores it on
+       next switch to that desktop).
+    2. Apply via COM immediately — only when this IS the currently active desktop.
+       We never keyboard-switch to inactive desktops: that approach is unreliable
+       and can corrupt wallpaper state across all desktops.
     Returns True when the registry write succeeded.
     """
     if not os.path.isfile(image_path):
@@ -200,10 +211,8 @@ def set_wallpaper_for_desktop(
 
     abs_path = os.path.abspath(image_path).replace("/", "\\")
 
-    # 1. Persist in registry
     reg_ok = _write_registry(desktop_guid, abs_path)
 
-    # 2. Apply immediately
     try:
         from app.services.desktop_detector import get_current_desktop_guid
         current_guid = get_current_desktop_guid()
@@ -218,33 +227,12 @@ def set_wallpaper_for_desktop(
             logger.info("Applied wallpaper (SPI) for current desktop %s", desktop_guid)
         else:
             logger.warning("Failed to apply wallpaper for current desktop %s", desktop_guid)
-
-    elif desktop_index is not None and current_index is not None:
-        # Switch to the target desktop, apply, then switch back
-        logger.info(
-            "Switching from desktop %d to %d to apply wallpaper for %s",
-            current_index, desktop_index, desktop_guid,
-        )
-        _switch_to_desktop(desktop_index, current_index)
-        time.sleep(0.5)          # wait for switch animation
-
-        if not _apply_com(abs_path):
-            _apply_spi(abs_path)
-
-        time.sleep(0.15)         # brief pause before returning
-        _switch_to_desktop(current_index, desktop_index)
-        time.sleep(0.5)          # wait for switch-back animation
-        logger.info("Applied wallpaper for inactive desktop %s", desktop_guid)
-
     else:
         logger.info(
-            "Registry updated for inactive desktop %s "
-            "(pass desktop_index + current_index for immediate apply)",
-            desktop_guid,
+            "Wallpaper queued (registry) for inactive desktop %s — "
+            "will be visible on next switch to that desktop", desktop_guid,
         )
 
-    if reg_ok:
-        logger.info("Set per-desktop wallpaper (registry) for %s → %s", desktop_guid, abs_path)
     return reg_ok
 
 
@@ -270,8 +258,9 @@ def set_wallpapers_for_desktop(
     Use None as the device_path to apply to all monitors at once.
 
     1. Write the first entry's path to the per-desktop registry key.
-    2. Apply immediately — one keyboard switch for inactive desktops regardless
-       of how many monitors need updating.
+    2. Apply via COM immediately — only when this IS the currently active desktop.
+       We never keyboard-switch to inactive desktops: that approach is unreliable
+       and corrupts wallpaper state across desktops.
     Returns True when the registry write succeeded.
     """
     if not monitor_wallpapers:
@@ -288,11 +277,6 @@ def set_wallpapers_for_desktop(
     # Registry only stores one path per virtual desktop — use the first one
     reg_ok = _write_registry(desktop_guid, abs_pairs[0][1])
 
-    def _apply_all() -> None:
-        for device_path, abs_path in abs_pairs:
-            if not _apply_com(abs_path, device_path):
-                _apply_spi(abs_path)
-
     try:
         from app.services.desktop_detector import get_current_desktop_guid
         current_guid = get_current_desktop_guid()
@@ -301,27 +285,14 @@ def set_wallpapers_for_desktop(
         is_current = False
 
     if is_current:
-        _apply_all()
+        for device_path, abs_path in abs_pairs:
+            if not _apply_com(abs_path, device_path):
+                _apply_spi(abs_path)
         logger.info("Applied wallpapers (multi-monitor) for current desktop %s", desktop_guid)
-
-    elif desktop_index is not None and current_index is not None:
-        logger.info(
-            "Switching desktop %d → %d to apply wallpapers for %s",
-            current_index, desktop_index, desktop_guid,
-        )
-        _switch_to_desktop(desktop_index, current_index)
-        time.sleep(0.5)
-        _apply_all()
-        time.sleep(0.15)
-        _switch_to_desktop(current_index, desktop_index)
-        time.sleep(0.5)
-        logger.info("Applied wallpapers for inactive desktop %s", desktop_guid)
-
     else:
         logger.info(
-            "Registry updated for inactive desktop %s "
-            "(pass desktop_index + current_index for immediate apply)",
-            desktop_guid,
+            "Wallpapers queued (registry) for inactive desktop %s — "
+            "will be visible on next switch to that desktop", desktop_guid,
         )
 
     return reg_ok

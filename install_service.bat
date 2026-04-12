@@ -31,7 +31,7 @@ set PYTHONW=%PYTHON:python.exe=pythonw.exe%
 if not exist "%PYTHONW%" set PYTHONW=%PYTHON%
 
 echo Registering redpaper startup task...
-schtasks /create /tn "redpaper" /tr "\"%PYTHONW%\" \"%~dp0main.py\"" /sc onlogon /ru "%USERDOMAIN%\%USERNAME%" /f /delay 0000:30
+schtasks /create /tn "redpaper" /tr "wscript.exe \"%~dp0launcher.vbs\"" /sc onlogon /ru "%USERDOMAIN%\%USERNAME%" /f /delay 0000:30
 if %errorlevel% neq 0 (
     echo Failed to register startup task.
     pause
@@ -39,7 +39,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Starting redpaper now...
-start "" "%PYTHONW%" "%~dp0main.py"
+start "" wscript.exe "%~dp0launcher.vbs"
 
 :: Wait a moment for the server to bind
 timeout /t 5 /nobreak >nul

@@ -10,6 +10,13 @@ if not exist config.json (
     exit /b 0
 )
 
+sc query redpaper >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Removing old redpaper Windows service...
+    net stop redpaper >nul 2>&1
+    python service.py remove >nul 2>&1
+)
+
 echo Registering redpaper startup task...
 schtasks /create /tn "redpaper" /tr "pythonw \"%~dp0main.py\"" /sc onlogon /ru "%USERDOMAIN%\%USERNAME%" /f /delay 0000:30
 if %errorlevel% neq 0 (

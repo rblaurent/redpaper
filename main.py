@@ -21,16 +21,24 @@ from app.services import comfyui_process
 from app.services.scheduler import start_scheduler
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+_log_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+_root = logging.getLogger()
+_root.setLevel(logging.INFO)
+# Console handler
+_ch = logging.StreamHandler()
+_ch.setFormatter(_log_fmt)
+_root.addHandler(_ch)
+# File handler — always write to server.log next to main.py
+from logging.handlers import RotatingFileHandler as _RFH
+_fh = _RFH(os.path.join(BASE_DIR, "server.log"), maxBytes=5 * 1024 * 1024, backupCount=2)
+_fh.setFormatter(_log_fmt)
+_root.addHandler(_fh)
 # Suppress APScheduler's per-execution INFO noise (keeps WARNING+)
 logging.getLogger("apscheduler.executors.default").setLevel(logging.WARNING)
 logging.getLogger("apscheduler.scheduler").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def load_config() -> dict:

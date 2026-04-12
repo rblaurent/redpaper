@@ -64,31 +64,20 @@ Generated wallpapers are saved to an `output/` folder next to the install.
 
 redpaper injects the AI-generated prompt into your workflow via a `{{prompt}}` placeholder. Export your workflow from ComfyUI as API format (`workflow.json`), place it in the repo root, and replace the text value of your positive prompt node with `{{prompt}}`. The seed is randomised automatically on every run — no configuration needed.
 
-### 3. Install as a Windows Service (recommended)
+### 3. Install as a startup task (recommended)
 
-This installs redpaper as a Windows service that starts automatically on boot.
-
-**Run as Administrator:**
+This registers redpaper as a Windows Task Scheduler task that starts automatically when you log in, running as your own user account.
 
 ```
 install_service.bat
 ```
 
-Or manually:
+No Administrator rights required. The web UI will be available at `http://127.0.0.1:18080`. Logs are written to `server.log` next to the install.
+
+To uninstall:
 
 ```
-python service.py install
-net start redpaper
-```
-
-The web UI will be available at `http://127.0.0.1:18080`.
-
-### Service management
-
-```bash
-net start redpaper      # start
-net stop redpaper       # stop
-python service.py remove  # uninstall
+uninstall.bat
 ```
 
 ### 4. Running without a service (manual / dev)

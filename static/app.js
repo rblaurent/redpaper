@@ -166,6 +166,13 @@ function makeDesktopCard(d) {
     ? `<span class="prompt-text">${esc(d.theme)}</span>`
     : `<span class="prompt-text empty">No theme set</span>`;
 
+  const usedPrompt = wp?.prompt_text
+    ? `<div class="used-prompt" title="${esc(wp.prompt_text)}">
+         ${wp.prompt_is_ai ? '<span class="ai-badge-sm">AI</span>' : ''}
+         <span class="used-prompt-text">${esc(wp.prompt_text.slice(0, 160))}${wp.prompt_text.length > 160 ? '…' : ''}</span>
+       </div>`
+    : '';
+
   card.innerHTML = `
     <div class="desktop-thumb-wrap">
       ${thumbHtml}
@@ -179,6 +186,7 @@ function makeDesktopCard(d) {
         ${themeText}
         <span class="prompt-edit-hint">${ICON_PEN}</span>
       </div>
+      ${usedPrompt}
       <div class="desktop-actions">
         <button class="icon-btn icon-btn-gold" title="Regenerate" onclick="generateOne('${d.guid}', this)">
           ${ICON_ROTATE}

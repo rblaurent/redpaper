@@ -699,6 +699,25 @@ html, body {
   margin-left: 4px;
 }
 
+/* ── Used prompt display ─────────────────────────────────────────────────── */
+.used-prompt {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin: 6px 0 2px;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.04);
+  border-left: 2px solid rgba(124,58,237,0.4);
+  border-radius: 0 4px 4px 0;
+}
+.used-prompt-text {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--t3);
+  font-style: italic;
+  word-break: break-word;
+}
+
 /* ── Misc ────────────────────────────────────────────────────────────────── */
 .loading-msg {
   color: var(--t3); padding: 60px 0;

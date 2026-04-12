@@ -32,10 +32,21 @@ async def list_desktops(db: AsyncSession = Depends(get_db)):
                 .limit(1)
             )).scalar_one_or_none()
             if wp:
+                wp_prompt_text = None
+                wp_prompt_is_ai = False
+                if wp.prompt_id:
+                    wp_pr = (await db.execute(
+                        select(Prompt).where(Prompt.id == wp.prompt_id)
+                    )).scalar_one_or_none()
+                    if wp_pr:
+                        wp_prompt_text = wp_pr.text
+                        wp_prompt_is_ai = wp_pr.is_ai_generated
                 active_wallpaper = {
                     "id": wp.id,
                     "file_path": wp.file_path,
                     "generated_at": wp.generated_at.isoformat(),
+                    "prompt_text": wp_prompt_text,
+                    "prompt_is_ai": wp_prompt_is_ai,
                 }
 
             pr = (await db.execute(

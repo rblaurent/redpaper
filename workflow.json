@@ -1,0 +1,83 @@
+{
+  "6": {
+    "inputs": {
+      "text": "a breathtaking landscape, cinematic lighting, ultra detailed, 4k wallpaper",
+      "clip": ["128", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "CLIP Text Encode (Positive Prompt)"}
+  },
+  "8": {
+    "inputs": {
+      "samples": ["31", 0],
+      "vae": ["127", 0]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {"title": "VAE Decode"}
+  },
+  "31": {
+    "inputs": {
+      "seed": 42,
+      "steps": 12,
+      "cfg": 1.3,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": ["131", 0],
+      "positive": ["6", 0],
+      "negative": ["130", 0],
+      "latent_image": ["110", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {"title": "KSampler"}
+  },
+  "110": {
+    "inputs": {
+      "width": 1920,
+      "height": 1088,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {"title": "EmptySD3LatentImage"}
+  },
+  "127": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {"title": "Charger VAE"}
+  },
+  "128": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {"title": "Charger CLIP"}
+  },
+  "130": {
+    "inputs": {
+      "text": "",
+      "clip": ["128", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "CLIP Text Encode (Negative Prompt)"}
+  },
+  "131": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {"title": "Charger Modèle Diffusion"}
+  },
+  "146": {
+    "inputs": {
+      "filename_prefix": "redpaper",
+      "images": ["8", 0]
+    },
+    "class_type": "SaveImage",
+    "_meta": {"title": "Enregistrer Image"}
+  }
+}

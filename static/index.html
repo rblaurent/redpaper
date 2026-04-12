@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>redpaper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Platypi:ital,wght@0,300..800;1,300..800&family=Raleway:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <div id="bg-layer"></div>
+  <div id="bg-overlay"></div>
+
+  <header id="main-header">
+    <div class="header-inner">
+      <span class="logo"><span class="ember-text">red</span>paper</span>
+      <div class="header-actions">
+        <div id="comfyui-status-wrap">
+          <span id="comfyui-dot" class="status-dot dot-unknown"></span>
+          <span id="comfyui-label">ComfyUI</span>
+          <button id="btn-start-comfyui" class="glass-btn-sm" style="display:none">Start</button>
+        </div>
+        <button id="btn-generate-all" class="glass-btn-primary">
+          <svg width="12" height="12" viewBox="0 0 512 512" fill="currentColor" style="vertical-align:-1px;margin-right:7px"><path d="M480.1 192l7.9 0c13.3 0 24-10.7 24-24l0-144c0-9.7-5.8-18.5-14.8-22.2S477.9 .2 471 7L419.3 58.8C375 22.1 318 0 256 0 127 0 20.3 95.4 2.6 219.5 .1 237 12.2 253.2 29.7 255.7s33.7-9.7 36.2-27.1C79.2 135.5 159.3 64 256 64 300.4 64 341.2 79 373.7 104.3L327 151c-6.9 6.9-8.9 17.2-5.2 26.2S334.3 192 344 192l136.1 0zm29.4 100.5c2.5-17.5-9.7-33.7-27.1-36.2s-33.7 9.7-36.2 27.1c-13.3 93-93.4 164.5-190.1 164.5-44.4 0-85.2-15-117.7-40.3L185 361c6.9-6.9 8.9-17.2 5.2-26.2S177.7 320 168 320L24 320c-13.3 0-24 10.7-24 24L0 488c0 9.7 5.8 18.5 14.8 22.2S34.1 511.8 41 505l51.8-51.8C137 489.9 194 512 256 512 385 512 491.7 416.6 509.4 292.5z"/></svg>
+          Generate All
+        </button>
+        <button id="btn-settings" class="icon-btn" title="Settings">
+          <svg width="14" height="14" viewBox="0 0 512 512" fill="currentColor"><path d="M495.9 166.6c3.2 8.7 .5 18.4-6.4 24.6l-43.3 39.4c1.1 8.3 1.7 16.8 1.7 25.4s-.6 17.1-1.7 25.4l43.3 39.4c6.9 6.2 9.6 15.9 6.4 24.6c-4.4 11.9-9.7 23.3-15.8 34.3l-4.7 8.1c-6.6 11-14 21.4-22.1 31.2c-5.9 7.2-15.7 9.6-24.5 6.8l-55.7-17.7c-13.4 10.3-28.2 18.9-44 25.4l-12.5 57.1c-2 9.1-9 16.3-18.2 17.8c-13.8 2.3-28 3.5-42.5 3.5s-28.7-1.2-42.5-3.5c-9.2-1.5-16.2-8.7-18.2-17.8l-12.5-57.1c-15.8-6.5-30.6-15.1-44-25.4L83.1 425.9c-8.8 2.8-18.6 .3-24.5-6.8c-8.1-9.8-15.5-20.2-22.1-31.2l-4.7-8.1c-6.1-11-11.4-22.4-15.8-34.3c-3.2-8.7-.5-18.4 6.4-24.6l43.3-39.4C64.6 273.1 64 264.6 64 256s.6-17.1 1.7-25.4L22.4 191.2c-6.9-6.2-9.6-15.9-6.4-24.6c4.4-11.9 9.7-23.3 15.8-34.3l4.7-8.1c6.6-11 14-21.4 22.1-31.2c5.9-7.2 15.7-9.6 24.5-6.8l55.7 17.7c13.4-10.3 28.2-18.9 44-25.4l12.5-57.1c2-9.1 9-16.3 18.2-17.8C227.3 1.2 241.5 0 256 0s28.7 1.2 42.5 3.5c9.2 1.5 16.2 8.7 18.2 17.8l12.5 57.1c15.8 6.5 30.6 15.1 44 25.4l55.7-17.7c8.8-2.8 18.6-.3 24.5 6.8c8.1 9.8 15.5 20.2 22.1 31.2l4.7 8.1c6.1 11 11.4 22.4 15.8 34.3zM256 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="app">
+    <section id="view-desktops" class="view active">
+      <div id="desktops-grid" class="desktops-grid">
+        <div class="loading-msg">Detecting desktops…</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- History modal -->
+  <div id="history-modal" class="modal-backdrop" style="display:none" onclick="closeHistoryModal(event)">
+    <div class="modal-box modal-box-lg">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title">History</h3>
+          <p class="modal-desktop-name" id="history-modal-desktop"></p>
+        </div>
+        <button class="icon-btn" onclick="closeHistoryModal()">
+          <svg width="14" height="14" viewBox="0 0 384 512" fill="currentColor"><path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z"/></svg>
+        </button>
+      </div>
+      <div id="history-grid" class="history-grid-modal"></div>
+      <div id="history-pagination" class="pagination"></div>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div id="settings-modal" class="modal-backdrop" style="display:none" onclick="closeSettingsModal(event)">
+    <div class="modal-box modal-box-settings">
+      <div class="modal-header">
+        <h3 class="modal-title">Settings</h3>
+        <button class="icon-btn" onclick="closeSettingsModal()">
+          <svg width="14" height="14" viewBox="0 0 384 512" fill="currentColor"><path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z"/></svg>
+        </button>
+      </div>
+      <div class="field-group">
+        <label>Daily schedule <span style="text-transform:none;font-weight:400">(cron)</span></label>
+        <input type="text" id="cfg-cron" placeholder="0 8 * * *" class="glass-input" />
+        <p class="field-note">e.g. <code>0 8 * * *</code> = every day at 08:00</p>
+      </div>
+      <div class="field-group">
+        <label>Default prompt</label>
+        <textarea id="cfg-default-prompt" rows="3" class="glass-input"></textarea>
+      </div>
+      <div class="field-group">
+        <label>Negative prompt</label>
+        <textarea id="cfg-negative-prompt" rows="2" class="glass-input"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label>Positive node ID</label>
+          <input type="text" id="cfg-pos-node" placeholder="6" class="glass-input" />
+        </div>
+        <div class="field-group">
+          <label>Negative node ID</label>
+          <input type="text" id="cfg-neg-node" placeholder="130" class="glass-input" />
+        </div>
+      </div>
+      <label class="toggle-row">
+        <input type="checkbox" id="cfg-auto-start" />
+        <span class="toggle-label">Auto-start ComfyUI on boot</span>
+      </label>
+      <div class="settings-footer">
+        <button class="glass-btn-primary" id="btn-save-settings">Save</button>
+        <span id="settings-status" class="save-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prompt modal -->
+  <div id="prompt-modal" class="modal-backdrop" style="display:none" onclick="closePromptModal(event)">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Prompt</h3>
+        <button class="icon-btn" onclick="closePromptModal()">
+          <svg width="14" height="14" viewBox="0 0 384 512" fill="currentColor"><path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z"/></svg>
+        </button>
+      </div>
+      <p class="modal-desktop-name" id="modal-desktop-name"></p>
+      <textarea id="modal-prompt-input" class="glass-input modal-textarea" rows="5" placeholder="Describe the wallpaper for this desktop…"></textarea>
+      <div class="modal-footer">
+        <button class="glass-btn-outline" onclick="closePromptModal()">Cancel</button>
+        <button class="glass-btn-primary" id="modal-save-btn" onclick="saveModalPrompt()">Save Prompt</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generation progress -->
+  <div id="progress-overlay" style="display:none">
+    <div class="progress-glass">
+      <div class="spinner"></div>
+      <p id="progress-text">Generating…</p>
+      <button class="glass-btn-sm" onclick="hideProgress()">Dismiss</button>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

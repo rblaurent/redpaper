@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+aiosqlite
+apscheduler
+aiohttp
+comtypes
+pywin32
+pillow

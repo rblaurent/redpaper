@@ -253,6 +253,20 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
                 .execution_options(synchronize_session=False)
             )
 
+        # If no shared monitors, deactivate any lingering shared wallpapers
+        # (left over from before the user switched to individual/solo mode)
+        if not shared_monitors:
+            await session.execute(
+                update(Wallpaper)
+                .where(
+                    Wallpaper.desktop_id == desktop.id,
+                    Wallpaper.monitor_device_path == None,
+                    Wallpaper.is_active == True,
+                )
+                .values(is_active=False)
+                .execution_options(synchronize_session=False)
+            )
+
         now = datetime.utcnow()
         all_active = shared_monitors + individual_monitors
         for target_path, dest_path in generated_pairs:

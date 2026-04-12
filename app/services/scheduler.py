@@ -71,8 +71,10 @@ async def _watch_desktop_switch():
     _last_desktop_guid = current_guid
 
     if prev is None:
-        # First poll after startup — just record, don't apply.
-        return
+        # First poll after startup — apply wallpapers for the current desktop
+        # so per-monitor assignments are restored (Windows registry only stores
+        # one path per desktop, so all monitors show the same image after reboot).
+        logger.info("Startup: applying wallpapers for current desktop %s", current_guid)
 
     logger.info("Desktop switched → %s, applying wallpapers", current_guid)
 

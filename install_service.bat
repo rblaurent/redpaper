@@ -10,6 +10,7 @@ if not exist config.json (
     exit /b 0
 )
 
+:: Remove old Windows service if present
 sc query redpaper >nul 2>&1
 if %errorlevel% equ 0 (
     echo Removing old redpaper Windows service...
@@ -17,22 +18,45 @@ if %errorlevel% equ 0 (
     python service.py remove >nul 2>&1
 )
 
+:: Find pythonw.exe next to the python executable (same install, no console window)
+for /f "tokens=*" %%p in ('where python 2^>nul') do (
+    set PYTHON=%%p
+    goto :found_python
+)
+echo ERROR: python not found in PATH. Install Python from https://python.org and try again.
+pause
+exit /b 1
+:found_python
+set PYTHONW=%PYTHON:python.exe=pythonw.exe%
+if not exist "%PYTHONW%" set PYTHONW=%PYTHON%
+
 echo Registering redpaper startup task...
-schtasks /create /tn "redpaper" /tr "pythonw \"%~dp0main.py\"" /sc onlogon /ru "%USERDOMAIN%\%USERNAME%" /f /delay 0000:30
+schtasks /create /tn "redpaper" /tr "\"%PYTHONW%\" \"%~dp0main.py\"" /sc onlogon /ru "%USERDOMAIN%\%USERNAME%" /f /delay 0000:30
 if %errorlevel% neq 0 (
-    echo Failed to register task.
+    echo Failed to register startup task.
     pause
     exit /b 1
 )
 
 echo Starting redpaper now...
-start "" pythonw "%~dp0main.py"
+start "" "%PYTHONW%" "%~dp0main.py"
+
+:: Wait a moment for the server to bind
+timeout /t 3 /nobreak >nul
 
 for /f "tokens=2 delims=:, " %%p in ('findstr /i "web_port" config.json') do set PORT=%%p
 if "%PORT%"=="" set PORT=18080
 
-echo.
-echo Done! redpaper is running at http://127.0.0.1:%PORT%
-echo It will start automatically each time you log in.
-echo Logs are written to %~dp0server.log
+:: Check if it actually started
+curl -s -o nul http://127.0.0.1:%PORT%/ >nul 2>&1
+if %errorlevel% equ 0 (
+    echo.
+    echo Done! redpaper is running at http://127.0.0.1:%PORT%
+    echo It will start automatically each time you log in.
+    echo Logs are written to %~dp0server.log
+) else (
+    echo.
+    echo WARNING: redpaper does not seem to be responding on port %PORT%.
+    echo Check %~dp0server.log for errors, or run: python main.py
+)
 pause

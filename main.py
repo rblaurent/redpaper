@@ -20,6 +20,7 @@ from app.api import wallpapers as wallpapers_router
 from app.services import comfyui_process
 from app.services.scheduler import start_scheduler
 
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -38,10 +39,6 @@ def load_config() -> dict:
 async def lifespan(app: FastAPI):
     await init_db()
     start_scheduler()
-    cfg = load_config()
-    if cfg.get("auto_start_comfyui", True):
-        logger.info("Auto-starting ComfyUI...")
-        comfyui_process.start()
     yield
 
 
@@ -80,11 +77,11 @@ async def get_config():
     # Don't expose internal paths unnecessarily; return relevant UI settings
     return {
         "schedule_cron": cfg.get("schedule_cron"),
-        "comfyui_url": cfg.get("comfyui_url"),
+        "comfyui_port": cfg.get("comfyui_port", 8188),
         "positive_prompt_node_id": cfg.get("positive_prompt_node_id"),
         "negative_prompt_node_id": cfg.get("negative_prompt_node_id"),
         "default_prompt": cfg.get("default_prompt"),
-        "auto_start_comfyui": cfg.get("auto_start_comfyui"),
+        "negative_prompt": cfg.get("negative_prompt", ""),
     }
 
 
@@ -92,8 +89,8 @@ async def get_config():
 async def save_config(body: dict):
     cfg = load_config()
     allowed = {
-        "schedule_cron", "positive_prompt_node_id", "negative_prompt_node_id",
-        "default_prompt", "auto_start_comfyui", "negative_prompt",
+        "schedule_cron", "comfyui_port", "positive_prompt_node_id",
+        "negative_prompt_node_id", "default_prompt", "negative_prompt",
     }
     for key in allowed:
         if key in body:

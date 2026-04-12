@@ -1,18 +1,22 @@
 """
-APScheduler wrapper for daily wallpaper generation.
+APScheduler wrapper for daily wallpaper generation and ComfyUI availability polling.
 Exposes start/stop/trigger functions used by main.py and the API.
 """
 import json
 import logging
 import os
+from datetime import date
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 logger = logging.getLogger(__name__)
 
 _scheduler: AsyncIOScheduler | None = None
 JOB_ID = "daily_generate"
+POLL_JOB_ID = "comfyui_poll"
+POLL_INTERVAL_MINUTES = 5
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -42,8 +46,28 @@ def get_scheduler() -> AsyncIOScheduler:
     return _scheduler
 
 
+async def _poll_and_generate():
+    """
+    Runs every POLL_INTERVAL_MINUTES minutes.
+    If ComfyUI is reachable and we haven't generated today yet, trigger generation.
+    This catches up when ComfyUI wasn't running at the scheduled time.
+    """
+    from app.services import comfyui_process
+    from app.services.generator import generate_all, last_generation_date
+
+    if not await comfyui_process.is_running():
+        return
+
+    last = last_generation_date()
+    if last is not None and last >= date.today():
+        return  # Already generated today
+
+    logger.info("Poll: ComfyUI is up and no generation today — triggering catch-up generation")
+    await generate_all()
+
+
 def start_scheduler():
-    """Start the scheduler with the daily generation job."""
+    """Start the scheduler with the daily generation job and the availability poll."""
     from app.services.generator import generate_all
 
     scheduler = get_scheduler()
@@ -57,8 +81,17 @@ def start_scheduler():
         replace_existing=True,
         name="Daily wallpaper generation",
     )
+
+    scheduler.add_job(
+        _poll_and_generate,
+        trigger=IntervalTrigger(minutes=POLL_INTERVAL_MINUTES),
+        id=POLL_JOB_ID,
+        replace_existing=True,
+        name="ComfyUI availability poll",
+    )
+
     scheduler.start()
-    logger.info("Scheduler started with cron: %s", _load_cron())
+    logger.info("Scheduler started — cron: %s, poll every %dm", _load_cron(), POLL_INTERVAL_MINUTES)
 
 
 def stop_scheduler():

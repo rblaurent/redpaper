@@ -19,21 +19,11 @@ async def comfyui_status():
     queue = await get_queue_status() if running else {}
     return {
         "running": running,
-        "url": comfyui_process.get_comfyui_url(),
+        "comfyui_port": comfyui_process._load_config().get("comfyui_port", 8188),
         "queue": queue,
         "next_scheduled": get_next_run(),
         "generating": _generating,
     }
-
-
-@router.post("/start")
-async def start_comfyui():
-    if await comfyui_process.is_running():
-        return {"status": "already_running"}
-    ok = comfyui_process.start()
-    if not ok:
-        raise HTTPException(status_code=500, detail="Failed to start ComfyUI")
-    return {"status": "starting"}
 
 
 class GenerateRequest(BaseModel):

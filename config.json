@@ -1,14 +1,11 @@
 {
   "web_port": 18080,
   "schedule_cron": "0 8 * * *",
-  "comfyui_path": "T:/Projects/ComfyUI",
-  "comfyui_url": "http://127.0.0.1:8188",
-  "comfyui_launch_script": "run_comfyui.bat",
+  "comfyui_port": 8188,
   "output_dir": "T:/Projects/wallpaper/output",
   "positive_prompt_node_id": "6",
   "negative_prompt_node_id": "130",
   "seed_node_id": "31",
   "default_prompt": "a breathtaking landscape, cinematic lighting, ultra detailed, 4k wallpaper",
-  "negative_prompt": "",
-  "auto_start_comfyui": true
+  "negative_prompt": ""
 }

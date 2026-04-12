@@ -5,6 +5,7 @@ let desktops = [];
 let historyPage = 1;
 let historyDesktopFilter = "";
 let modalGuid = null;
+let _nextRunTime = null;
 
 // SVG icon paths
 const ICON_ROTATE = `<svg width="13" height="13" viewBox="0 0 512 512" fill="currentColor"><path d="M480.1 192l7.9 0c13.3 0 24-10.7 24-24l0-144c0-9.7-5.8-18.5-14.8-22.2S477.9 .2 471 7L419.3 58.8C375 22.1 318 0 256 0 127 0 20.3 95.4 2.6 219.5 .1 237 12.2 253.2 29.7 255.7s33.7-9.7 36.2-27.1C79.2 135.5 159.3 64 256 64 300.4 64 341.2 79 373.7 104.3L327 151c-6.9 6.9-8.9 17.2-5.2 26.2S334.3 192 344 192l136.1 0zm29.4 100.5c2.5-17.5-9.7-33.7-27.1-36.2s-33.7 9.7-36.2 27.1c-13.3 93-93.4 164.5-190.1 164.5-44.4 0-85.2-15-117.7-40.3L185 361c6.9-6.9 8.9-17.2 5.2-26.2S177.7 320 168 320L24 320c-13.3 0-24 10.7-24 24L0 488c0 9.7 5.8 18.5 14.8 22.2S34.1 511.8 41 505l51.8-51.8C137 489.9 194 512 256 512 385 512 491.7 416.6 509.4 292.5z"/></svg>`;
@@ -14,12 +15,11 @@ const ICON_CLOCK = `<svg width="12" height="12" viewBox="0 0 512 512" fill="curr
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   loadConfig();
-  refreshComfyStatus();
   loadDesktops();
-  setInterval(refreshComfyStatus, 8000);
+  fetchStatus();
+  setInterval(updateCountdown, 30000);
 
   document.getElementById("btn-generate-all").addEventListener("click", generateAll);
-  document.getElementById("btn-start-comfyui").addEventListener("click", startComfyUI);
   document.getElementById("btn-save-settings").addEventListener("click", saveSettings);
   document.getElementById("btn-settings").addEventListener("click", openSettingsModal);
 });
@@ -46,12 +46,18 @@ function pickBackgroundFromDesktops(list) {
 }
 
 // ── Settings modal ───────────────────────────────────────────────────────────
+let _statusInterval = null;
+
 function openSettingsModal() {
   document.getElementById("settings-modal").style.display = "flex";
+  fetchStatus();
+  _statusInterval = setInterval(fetchStatus, 5000);
 }
 function closeSettingsModal(e) {
   if (e && e.target !== document.getElementById("settings-modal")) return;
   document.getElementById("settings-modal").style.display = "none";
+  clearInterval(_statusInterval);
+  _statusInterval = null;
 }
 
 // ── History modal ────────────────────────────────────────────────────────────
@@ -60,43 +66,40 @@ function closeHistoryModal(e) {
   document.getElementById("history-modal").style.display = "none";
 }
 
-// ── ComfyUI ───────────────────────────────────────────────────────────────────
-async function refreshComfyStatus() {
-  const dot   = document.getElementById("comfyui-dot");
-  const label = document.getElementById("comfyui-label");
-  const startBtn = document.getElementById("btn-start-comfyui");
-  const genBtn = document.getElementById("btn-generate-all");
-
-  try {
-    const data = await api("/api/comfyui/status");
-    if (data.running) {
-      const busy = data.generating;
-      dot.className = `status-dot ${busy ? "dot-busy" : "dot-ok"}`;
-      label.textContent = busy ? "ComfyUI busy" : "ComfyUI";
-      startBtn.style.display = "none";
-      genBtn.disabled = busy;
-    } else {
-      dot.className = "status-dot dot-err";
-      label.textContent = "ComfyUI offline";
-      startBtn.style.display = "";
-      genBtn.disabled = false;
-    }
-  } catch {
-    dot.className = "status-dot dot-unknown";
-    label.textContent = "ComfyUI";
-  }
+// ── ComfyUI status ────────────────────────────────────────────────────────────
+function updateCountdown() {
+  const el = document.getElementById("next-run-label");
+  if (!el) return;
+  if (!_nextRunTime) { el.textContent = ""; return; }
+  const ms = new Date(_nextRunTime) - Date.now();
+  if (ms <= 60000) { el.textContent = ""; return; }
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  el.textContent = h > 0 ? `in ${h}h ${m}m` : `in ${m}m`;
 }
 
-async function startComfyUI() {
-  const btn = document.getElementById("btn-start-comfyui");
-  btn.disabled = true;
-  btn.textContent = "Starting…";
+async function fetchStatus() {
+  const dot    = document.getElementById("comfyui-dot");
+  const label  = document.getElementById("comfyui-label");
+  const genBtn = document.getElementById("btn-generate-all");
   try {
-    await api("/api/comfyui/start", "POST");
-    setTimeout(refreshComfyStatus, 3000);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Start";
+    const data = await api("/api/comfyui/status");
+    _nextRunTime = data.next_scheduled ?? null;
+    updateCountdown();
+    if (dot && label) {
+      if (data.running) {
+        const busy = data.generating;
+        dot.className = `status-dot ${busy ? "dot-busy" : "dot-ok"}`;
+        label.textContent = busy ? "busy" : "online";
+      } else {
+        dot.className = "status-dot dot-err";
+        label.textContent = "offline";
+      }
+    }
+    if (genBtn) genBtn.disabled = !!data.generating;
+  } catch {
+    if (dot) { dot.className = "status-dot dot-unknown"; label.textContent = ""; }
+    if (genBtn) genBtn.disabled = false;
   }
 }
 
@@ -205,7 +208,7 @@ async function generateOne(guid, btn) {
   showProgress("Generating wallpaper…");
   try {
     await api("/api/comfyui/generate", "POST", { desktop_guid: guid });
-    pollUntilDone(() => { hideProgress(); loadDesktops(); refreshComfyStatus(); btn.disabled = false; btn.style.opacity = ""; });
+    pollUntilDone(() => { hideProgress(); loadDesktops(); fetchStatus(); btn.disabled = false; btn.style.opacity = ""; });
   } catch (e) {
     hideProgress();
     alert("Generation failed: " + e.message);
@@ -220,7 +223,7 @@ async function generateAll() {
   showProgress("Generating wallpapers for all desktops…");
   try {
     await api("/api/comfyui/generate", "POST", { all: true });
-    pollUntilDone(() => { hideProgress(); loadDesktops(); refreshComfyStatus(); });
+    pollUntilDone(() => { hideProgress(); loadDesktops(); fetchStatus(); });
   } catch (e) {
     hideProgress();
     alert("Generation failed: " + e.message);
@@ -316,7 +319,7 @@ async function loadConfig() {
     document.getElementById("cfg-negative-prompt").value= cfg.negative_prompt ?? "";
     document.getElementById("cfg-pos-node").value       = cfg.positive_prompt_node_id ?? "";
     document.getElementById("cfg-neg-node").value       = cfg.negative_prompt_node_id ?? "";
-    document.getElementById("cfg-auto-start").checked   = !!cfg.auto_start_comfyui;
+    document.getElementById("cfg-comfyui-port").value   = cfg.comfyui_port ?? 8188;
   } catch {}
 }
 
@@ -332,7 +335,7 @@ async function saveSettings() {
       negative_prompt:         document.getElementById("cfg-negative-prompt").value,
       positive_prompt_node_id: document.getElementById("cfg-pos-node").value || null,
       negative_prompt_node_id: document.getElementById("cfg-neg-node").value || null,
-      auto_start_comfyui:      document.getElementById("cfg-auto-start").checked,
+      comfyui_port:            parseInt(document.getElementById("cfg-comfyui-port").value, 10) || 8188,
     });
     status.textContent = "Saved!";
     setTimeout(() => status.textContent = "", 2000);

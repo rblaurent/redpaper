@@ -29,7 +29,7 @@ exit /b 1
 :found_python
 
 echo Registering redpaper startup task...
-schtasks /create /tn "redpaper" /tr "\"%PYTHON%\" \"%~dp0main.py\"" /sc onlogon /ru "%USERDOMAIN%\%USERNAME%" /f /delay 0000:30
+schtasks /create /tn "redpaper" /tr "powershell.exe -WindowStyle Hidden -Command \"Start-Process '%PYTHON%' -ArgumentList '\"%~dp0main.py\"' -WindowStyle Hidden\"" /sc onlogon /ru "%USERDOMAIN%\%USERNAME%" /f /delay 0000:30
 if %errorlevel% neq 0 (
     echo Failed to register startup task.
     pause
@@ -37,7 +37,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Starting redpaper now...
-start /min "redpaper" "%PYTHON%" "%~dp0main.py"
+powershell -WindowStyle Hidden -Command "Start-Process '%PYTHON%' -ArgumentList '\"%~dp0main.py\"' -WindowStyle Hidden"
 
 echo Waiting for server to start...
 timeout /t 10 /nobreak >nul

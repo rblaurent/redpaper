@@ -42,8 +42,7 @@ Edit `config.json`:
   "schedule_cron": "0 8 * * *",
   "claude_path": "C:/path/to/claude.cmd",
   "comfyui_port": 8188,
-  "output_dir": "C:/path/to/redpaper/output",
-  "seed_node_id": "31"
+  "output_dir": "C:/path/to/redpaper/output"
 }
 ```
 
@@ -54,11 +53,15 @@ Edit `config.json`:
 | `claude_path` | Full path to `claude.cmd` (find it with `where claude`) |
 | `comfyui_port` | ComfyUI API port |
 | `output_dir` | Where generated wallpapers are saved |
-| `seed_node_id` | ComfyUI workflow node ID for the seed (for randomisation) |
 
 ### Workflow setup
 
-redpaper injects the AI-generated prompt into your ComfyUI workflow via a `{{prompt}}` placeholder. Open `workflow.json` and replace the text content of your positive prompt node with `{{prompt}}`. The seed node ID tells redpaper which node to randomise on each run — find it by checking node numbers in ComfyUI's web UI.
+redpaper injects values into your ComfyUI workflow via placeholders:
+
+- `{{prompt}}` — replaced with the AI-generated prompt text; put this in your positive prompt node's text field
+- `{{seed}}` — replaced with a random seed on each run; put this as the seed value in your sampler node
+
+Export your workflow from ComfyUI as API format (`workflow.json`) and place it in the repo root.
 
 ### 3. Install as a Windows Service (recommended)
 

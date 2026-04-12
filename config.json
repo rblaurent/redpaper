@@ -3,10 +3,5 @@
   "schedule_cron": "0 8 * * *",
   "claude_path": "C:/Users/laure/AppData/Roaming/npm/claude.cmd",
   "comfyui_port": 8188,
-  "output_dir": "T:/Projects/wallpaper/output",
-  "positive_prompt_node_id": "6",
-  "negative_prompt_node_id": "130",
-  "seed_node_id": "31",
-  "default_prompt": "a breathtaking landscape, cinematic lighting, ultra detailed, 4k wallpaper",
-  "negative_prompt": ""
+  "output_dir": "T:/Projects/wallpaper/output"
 }

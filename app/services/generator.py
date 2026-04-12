@@ -89,18 +89,11 @@ async def _generate_one_image(
     Submit one ComfyUI generation (with a fresh random seed) and return
     (filename, subfolder) of the output image, or None on failure.
     """
-    workflow = json.loads(json.dumps(workflow_template))  # deep copy
-
-    pos_node = cfg.get("positive_prompt_node_id")
-    neg_node = cfg.get("negative_prompt_node_id")
-    seed_node = cfg.get("seed_node_id")
-
-    if pos_node:
-        comfyui_client.inject_prompt(workflow, str(pos_node), prompt_text)
-    if neg_node:
-        comfyui_client.inject_prompt(workflow, str(neg_node), cfg.get("negative_prompt", ""))
-    if seed_node and str(seed_node) in workflow:
-        workflow[str(seed_node)]["inputs"]["seed"] = random.randint(0, 2**32 - 1)
+    # Replace {{prompt}} and {{seed}} placeholders anywhere in the workflow JSON
+    workflow_str = json.dumps(workflow_template)
+    workflow_str = workflow_str.replace("{{prompt}}", prompt_text)
+    workflow_str = workflow_str.replace('"{{seed}}"', str(random.randint(0, 2**32 - 1)))
+    workflow = json.loads(workflow_str)
 
     try:
         comfy_id = await comfyui_client.submit_workflow(workflow)
@@ -154,7 +147,6 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
         )).scalar_one()
 
         # ── Resolve prompt ────────────────────────────────────────────────────
-        default_prompt = cfg.get("default_prompt", "a beautiful landscape wallpaper")
         db_prompt_id: int | None = None
         if prompt_text is None:
             if desktop.theme:
@@ -178,10 +170,10 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
                     prompt_text = ai_text
                     db_prompt_id = new_prompt.id
                 else:
-                    logger.warning("AI prompt generation failed for %s, falling back", desktop_info.guid)
-                    db_prompt_id, prompt_text = await _get_active_prompt(session, desktop.id, default_prompt)
+                    logger.warning("AI prompt generation failed for %s, falling back to active prompt", desktop_info.guid)
+                    db_prompt_id, prompt_text = await _get_active_prompt(session, desktop.id, "")
             else:
-                db_prompt_id, prompt_text = await _get_active_prompt(session, desktop.id, default_prompt)
+                db_prompt_id, prompt_text = await _get_active_prompt(session, desktop.id, "")
 
         # Store resolved prompt in progress so frontend can display it
         _progress["prompt"] = (prompt_text or "")[:400]

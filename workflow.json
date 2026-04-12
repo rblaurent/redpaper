@@ -1,7 +1,7 @@
 {
   "6": {
     "inputs": {
-      "text": "a breathtaking landscape, cinematic lighting, ultra detailed, 4k wallpaper",
+      "text": "{{prompt}}",
       "clip": ["128", 0]
     },
     "class_type": "CLIPTextEncode",

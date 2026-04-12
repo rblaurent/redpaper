@@ -18,20 +18,16 @@ if %errorlevel% equ 0 (
     python service.py remove >nul 2>&1
 )
 
-:: Find pythonw.exe next to the python executable (same install, no console window)
-for /f "tokens=*" %%p in ('where python 2^>nul') do (
-    set PYTHON=%%p
-    goto :found_python
-)
-echo ERROR: python not found in PATH. Install Python from https://python.org and try again.
-pause
-exit /b 1
-:found_python
-set PYTHONW=%PYTHON:python.exe=pythonw.exe%
-if not exist "%PYTHONW%" set PYTHONW=%PYTHON%
+:: Copy launcher to %LOCALAPPDATA%\redpaper so it runs from a local path at logon
+:: (the install dir may be on a mapped drive not yet available at logon time)
+set LAUNCHER_DIR=%LOCALAPPDATA%\redpaper
+if not exist "%LAUNCHER_DIR%" mkdir "%LAUNCHER_DIR%"
+copy /y "%~dp0launcher.vbs" "%LAUNCHER_DIR%\launcher.vbs" >nul
+:: Write the install path so the launcher can find main.py
+echo %~dp0> "%LAUNCHER_DIR%\redpaper.path"
 
 echo Registering redpaper startup task...
-schtasks /create /tn "redpaper" /tr "wscript.exe \"%~dp0launcher.vbs\"" /sc onlogon /ru "%USERDOMAIN%\%USERNAME%" /f /delay 0000:30
+schtasks /create /tn "redpaper" /tr "wscript.exe \"%LAUNCHER_DIR%\launcher.vbs\"" /sc onlogon /ru "%USERDOMAIN%\%USERNAME%" /f /delay 0000:30
 if %errorlevel% neq 0 (
     echo Failed to register startup task.
     pause
@@ -39,16 +35,16 @@ if %errorlevel% neq 0 (
 )
 
 echo Starting redpaper now...
-start "" wscript.exe "%~dp0launcher.vbs"
+start "" wscript.exe "%LAUNCHER_DIR%\launcher.vbs"
 
-:: Wait a moment for the server to bind
-timeout /t 5 /nobreak >nul
+:: Wait for server to start (launcher waits for drive, then starts python)
+echo Waiting for server to start...
+timeout /t 15 /nobreak >nul
 
 for /f "tokens=2 delims=:, " %%p in ('findstr /i "web_port" config.json') do set PORT=%%p
 if "%PORT%"=="" set PORT=18080
 
-:: Check if it actually started (PowerShell is available on all Windows 10/11)
-powershell -Command "try { Invoke-WebRequest -Uri 'http://127.0.0.1:%PORT%/' -UseBasicParsing -TimeoutSec 5 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
+powershell -Command "try { Invoke-WebRequest -Uri 'http://127.0.0.1:%PORT%/' -UseBasicParsing -TimeoutSec 10 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
 if %errorlevel% equ 0 (
     echo.
     echo Done! redpaper is running at http://127.0.0.1:%PORT%

@@ -206,7 +206,7 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
 
         # ── Generate images ───────────────────────────────────────────────────
         today = date.today().isoformat()
-        output_dir = cfg.get("output_dir", os.path.join(BASE_DIR, "output"))
+        output_dir = os.path.join(BASE_DIR, "output")
         generated_pairs: list[tuple[str | None, str]] = []
 
         _progress["image_total"] = len(targets)

@@ -41,8 +41,7 @@ Edit `config.json`:
   "web_port": 18080,
   "schedule_cron": "0 8 * * *",
   "claude_path": "C:/path/to/claude.cmd",
-  "comfyui_port": 8188,
-  "output_dir": "C:/path/to/redpaper/output"
+  "comfyui_port": 8188
 }
 ```
 
@@ -52,7 +51,8 @@ Edit `config.json`:
 | `schedule_cron` | Cron expression for daily generation |
 | `claude_path` | Full path to `claude.cmd` (find it with `where claude`) |
 | `comfyui_port` | ComfyUI API port |
-| `output_dir` | Where generated wallpapers are saved |
+
+Generated wallpapers are saved to an `output/` folder next to the install.
 
 ### Workflow setup
 

@@ -2,6 +2,5 @@
   "web_port": 18080,
   "schedule_cron": "0 8 * * *",
   "claude_path": "C:/Users/laure/AppData/Roaming/npm/claude.cmd",
-  "comfyui_port": 8188,
-  "output_dir": "T:/Projects/wallpaper/output"
+  "comfyui_port": 8188
 }

@@ -42,13 +42,13 @@ echo Starting redpaper now...
 start "" "%PYTHONW%" "%~dp0main.py"
 
 :: Wait a moment for the server to bind
-timeout /t 3 /nobreak >nul
+timeout /t 5 /nobreak >nul
 
 for /f "tokens=2 delims=:, " %%p in ('findstr /i "web_port" config.json') do set PORT=%%p
 if "%PORT%"=="" set PORT=18080
 
-:: Check if it actually started
-curl -s -o nul http://127.0.0.1:%PORT%/ >nul 2>&1
+:: Check if it actually started (PowerShell is available on all Windows 10/11)
+powershell -Command "try { Invoke-WebRequest -Uri 'http://127.0.0.1:%PORT%/' -UseBasicParsing -TimeoutSec 5 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
 if %errorlevel% equ 0 (
     echo.
     echo Done! redpaper is running at http://127.0.0.1:%PORT%

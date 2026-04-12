@@ -5,7 +5,7 @@ Exposes start/stop/trigger functions used by main.py and the API.
 import json
 import logging
 import os
-from datetime import date
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -20,6 +20,7 @@ SWITCH_JOB_ID = "desktop_switch_watcher"
 POLL_INTERVAL_MINUTES = 5
 
 _last_desktop_guid: str | None = None
+_generation_in_progress: bool = False
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -108,24 +109,55 @@ async def _watch_desktop_switch():
         logger.warning("Desktop-switch wallpaper apply failed: %s", exc)
 
 
+def _last_scheduled_time() -> datetime | None:
+    """Return the most recent cron fire time (i.e. the one we should have generated for)."""
+    scheduler = get_scheduler()
+    job = scheduler.get_job(JOB_ID)
+    if not job:
+        return None
+    # Ask the cron trigger: "given an imaginary fire at epoch, when is the next?"
+    # We walk backwards: next_fire is in the future, so previous = next - 1 day
+    # APScheduler CronTrigger doesn't expose "previous", but we can compute it:
+    # from (now - 1 day) ask get_next_fire_time to find the most recent past fire.
+    now = datetime.now(job.next_run_time.tzinfo)
+    previous = job.trigger.get_next_fire_time(None, now - timedelta(days=1))
+    if previous and previous <= now:
+        return previous
+    return None
+
+
 async def _poll_and_generate():
     """
     Runs every POLL_INTERVAL_MINUTES minutes.
-    If ComfyUI is reachable and we haven't generated today yet, trigger generation.
-    This catches up when ComfyUI wasn't running at the scheduled time.
+    Catches up if the scheduled cron was missed (e.g. ComfyUI wasn't running).
+    Compares last generation time against the last scheduled cron time.
     """
+    global _generation_in_progress
     from app.services import comfyui_process
-    from app.services.generator import generate_all, last_generation_date
+    from app.services.generator import generate_all, last_generation_datetime
+
+    if _generation_in_progress:
+        return
 
     if not await comfyui_process.is_running():
         return
 
-    last = await last_generation_date()
-    if last is not None and last >= date.today():
-        return  # Already generated today
+    scheduled = _last_scheduled_time()
+    if scheduled is None:
+        return
 
-    logger.info("Poll: ComfyUI is up and no generation today — triggering catch-up generation")
-    await generate_all()
+    last_gen = await last_generation_datetime()
+    # last_gen is naive UTC from the DB; convert scheduled to UTC for comparison
+    scheduled_utc = scheduled.astimezone(timezone.utc).replace(tzinfo=None)
+    if last_gen is not None and last_gen >= scheduled_utc:
+        return  # Already generated since the last scheduled time
+
+    logger.info("Poll: ComfyUI is up, no generation since scheduled time %s — triggering catch-up", scheduled)
+    _generation_in_progress = True
+    try:
+        await generate_all()
+    finally:
+        _generation_in_progress = False
 
 
 def start_scheduler():

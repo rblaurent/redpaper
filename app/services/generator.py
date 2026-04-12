@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import random
-from datetime import datetime, date
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import func, select, update
@@ -29,14 +29,11 @@ def get_progress() -> dict:
     return dict(_progress)
 
 
-async def last_generation_date() -> Optional[date]:
-    """Return the date of the most recent wallpaper generation, queried from the DB."""
+async def last_generation_datetime() -> Optional[datetime]:
+    """Return the UTC datetime of the most recent wallpaper generation."""
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(func.max(Wallpaper.generated_at)))
-        last_dt = result.scalar_one_or_none()
-        if last_dt is None:
-            return None
-        return last_dt.date()
+        return result.scalar_one_or_none()
 
 
 def _load_config() -> dict:

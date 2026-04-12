@@ -1,0 +1,34 @@
+#!/bin/bash
+# Runs automatically after every successful `git pull`.
+# Kills the running redpaper server and starts a fresh one with the new code.
+
+REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd -W)"   # Windows path e.g. T:\Projects\wallpaper
+
+echo "[post-merge] Restarting redpaper server..."
+
+# Kill any running python process whose command line includes main.py
+powershell.exe -NoProfile -Command "
+  \$procs = Get-WmiObject Win32_Process | Where-Object { \$_.CommandLine -like '*main.py*' }
+  if (\$procs) {
+    \$procs | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Write-Host '[post-merge] Stopped old process.'
+  } else {
+    Write-Host '[post-merge] No running process found.'
+  }
+"
+
+sleep 1
+
+# Find python.exe
+PYTHON=$(where python 2>/dev/null | head -1)
+if [ -z "$PYTHON" ]; then
+  echo "[post-merge] ERROR: python not found in PATH, server not restarted."
+  exit 1
+fi
+
+# Start fresh instance, hidden
+powershell.exe -NoProfile -WindowStyle Hidden -Command "
+  Start-Process '$PYTHON' -ArgumentList '\"${REPO_DIR}\\main.py\"' -WindowStyle Hidden
+"
+
+echo "[post-merge] redpaper server restarted."

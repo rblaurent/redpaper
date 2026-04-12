@@ -36,6 +36,11 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+echo Installing git post-merge hook...
+copy /y "%~dp0hooks\post-merge" "%~dp0.git\hooks\post-merge" >nul
+:: Make it executable for Git Bash
+git config core.hooksPath .git/hooks >nul 2>&1
+
 echo Starting redpaper now...
 powershell -WindowStyle Hidden -Command "Start-Process '%PYTHON%' -ArgumentList '\"%~dp0main.py\"' -WindowStyle Hidden"
 

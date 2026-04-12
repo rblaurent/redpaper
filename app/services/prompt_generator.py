@@ -39,7 +39,7 @@ REQUIREMENTS for z-turbo:
 - Lighting (pick 1-2): golden hour, dramatic backlighting, soft diffused light, neon glow, bioluminescent, moonlit, volumetric rays, rim lighting, studio lighting
 
 OUTPUT RULES — critical:
-- Output ONLY the raw prompt text, nothing else
+- Output ONLY the raw prompt text, nothing else, in English
 - No explanation, no preamble, no quotes, no markdown
 - Single line only
 
@@ -126,7 +126,7 @@ Current theme:
 
 User instruction: {instruction}
 
-Rewrite the theme to reflect the instruction. Keep it as flowing prose (2–5 sentences). Describe the visual world, mood, palette, atmosphere, and any style or artistic references. Do NOT write comma-separated keywords, technical tags, or anything that looks like an image generation prompt. Output ONLY the updated theme text — no explanation, no markdown, no quotes, no preamble."""
+Rewrite the theme to reflect the instruction. Keep it as flowing prose (2–5 sentences). Describe the visual world, mood, palette, atmosphere, and any style or artistic references. Do NOT write comma-separated keywords, technical tags, or anything that looks like an image generation prompt. Output ONLY the updated theme text in English — no explanation, no markdown, no quotes, no preamble."""
 
 CREATE_THEME_TEMPLATE = """You are helping a user set up a wallpaper theme for their desktop.
 
@@ -138,7 +138,7 @@ You are writing the THEME (the creative brief), not a daily prompt.
 
 User request: {instruction}
 
-Write a theme as flowing prose (2–5 sentences). Describe the visual world, mood, color palette, atmosphere, and any style or artistic references. Do NOT write comma-separated keywords, technical tags, or anything that looks like an image generation prompt. Output ONLY the theme text — no explanation, no markdown, no quotes, no preamble."""
+Write a theme as flowing prose (2–5 sentences). Describe the visual world, mood, color palette, atmosphere, and any style or artistic references. Do NOT write comma-separated keywords, technical tags, or anything that looks like an image generation prompt. Output ONLY the theme text in English — no explanation, no markdown, no quotes, no preamble."""
 
 
 async def refine_theme(current_theme: str | None, instruction: str) -> str | None:

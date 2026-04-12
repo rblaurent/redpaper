@@ -244,7 +244,7 @@ html, body {
   -webkit-backdrop-filter: var(--blur);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-lg);
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   box-shadow:
@@ -265,13 +265,6 @@ html, body {
     0 40px 80px rgba(0,0,0,0.60),
     0 0 0 1px rgba(201,168,76,0.08);
 }
-.desktop-card.is-current {
-  border-color: var(--glass-border-hi);
-  box-shadow:
-    0 2px 0 rgba(255,255,255,0.05) inset,
-    0 24px 56px rgba(0,0,0,0.5),
-    0 0 32px rgba(201,168,76,0.06);
-}
 
 /* Thumbnail / monitor preview area */
 .desktop-thumb-wrap {
@@ -280,6 +273,7 @@ html, body {
   aspect-ratio: 16/9;
   overflow: hidden;
   background: #080604;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 
 /* Main wallpaper thumbnail */
@@ -363,31 +357,6 @@ html, body {
 .mon-thumb.mode-individual .mon-mode-icon { color: var(--gold); }
 .mon-thumb.mode-off        .mon-mode-icon { color: var(--t3); }
 
-/* Badges over thumbnail */
-.current-pill {
-  position: absolute; top: 12px; left: 12px;
-  background: rgba(10,8,6,0.72);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid var(--glass-border-hi);
-  border-radius: var(--r);
-  padding: 4px 12px;
-  font-size: 9px; font-weight: 600;
-  letter-spacing: 0.16em; text-transform: uppercase;
-  color: var(--gold);
-}
-
-.desktop-index-badge {
-  position: absolute; top: 12px; right: 12px;
-  background: rgba(10,8,6,0.60);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: var(--r);
-  padding: 4px 12px;
-  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--t3);
-}
 
 /* Card body */
 .desktop-body {
@@ -860,23 +829,45 @@ html, body {
   margin-left: 4px;
 }
 
-/* ── Used prompt display ─────────────────────────────────────────────────── */
-.used-prompt {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  margin: 6px 0 2px;
-  padding: 6px 8px;
-  background: rgba(255,255,255,0.04);
-  border-left: 2px solid rgba(124,58,237,0.4);
-  border-radius: 0 4px 4px 0;
+/* ── Prompt peek tooltip ─────────────────────────────────────────────────── */
+.prompt-peek-wrap {
+  position: relative;
+  margin-left: auto;
 }
-.used-prompt-text {
+.prompt-peek-wrap::after {
+  content: attr(data-prompt);
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  width: 260px;
+  background: rgba(10, 8, 6, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border-hi);
+  border-radius: 10px;
+  padding: 11px 14px;
   font-size: 10px;
-  line-height: 1.5;
-  color: var(--t3);
+  line-height: 1.65;
+  color: var(--t2);
   font-style: italic;
+  font-family: var(--font-sans);
   word-break: break-word;
+  white-space: normal;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease;
+  z-index: 200;
+}
+.prompt-peek-wrap:hover::after {
+  opacity: 1;
+}
+.prompt-peek-btn {
+  opacity: 0.45;
+  transition: opacity .2s, border-color .2s, color .2s, background .2s, transform .25s cubic-bezier(0.34,1.56,0.64,1);
+}
+.prompt-peek-btn:hover {
+  opacity: 1;
 }
 
 /* ── Misc ────────────────────────────────────────────────────────────────── */

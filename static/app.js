@@ -13,6 +13,7 @@ const ICON_ROTATE   = `<svg width="13" height="13" viewBox="0 0 512 512" fill="c
 const ICON_PEN      = `<svg width="12" height="12" viewBox="0 0 512 512" fill="currentColor"><path d="M352.9 21.2L308 66.1 445.9 204 490.8 159.1C504.4 145.6 512 127.2 512 108s-7.6-37.6-21.2-51.1L455.1 21.2C441.6 7.6 423.2 0 404 0s-37.6 7.6-51.1 21.2zM274.1 100L58.9 315.1c-10.7 10.7-18.5 24.1-22.6 38.7L.9 481.6c-2.3 8.3 0 17.3 6.2 23.4s15.1 8.5 23.4 6.2l127.8-35.5c14.6-4.1 27.9-11.8 38.7-22.6L412 237.9 274.1 100z"/></svg>`;
 const ICON_CLOCK    = `<svg width="12" height="12" viewBox="0 0 512 512" fill="currentColor"><path d="M256 0a256 256 0 1 1 0 512A256 256 0 1 1 256 0zM232 120l0 136c0 8 4 15.5 10.7 20l96 64c11 7.4 25.9 4.5 33.3-6.5s4.5-25.9-6.5-33.3L280 243.2 280 120c0-13.3-10.7-24-24-24s-24 10.7-24 24z"/></svg>`;
 const ICON_MONITORS = `<svg width="12" height="12" viewBox="0 0 576 512" fill="currentColor"><path d="M64 0C28.7 0 0 28.7 0 64V352c0 35.3 28.7 64 64 64H240l-10.7 32H160c-17.7 0-32 14.3-32 32s14.3 32 32 32H416c17.7 0 32-14.3 32-32s-14.3-32-32-32H346.7L336 416H512c35.3 0 64-28.7 64-64V64c0-35.3-28.7-64-64-64H64zM512 64V352H64V64H512z"/></svg>`;
+const ICON_SCROLL   = `<svg width="12" height="12" viewBox="0 0 512 512" fill="currentColor"><path d="M64 96c-17.7 0-32 14.3-32 32s14.3 32 32 32H448c17.7 0 32-14.3 32-32s-14.3-32-32-32H64zm0 128c-17.7 0-32 14.3-32 32s14.3 32 32 32H448c17.7 0 32-14.3 32-32s-14.3-32-32-32H64zm0 128c-17.7 0-32 14.3-32 32s14.3 32 32 32H320c17.7 0 32-14.3 32-32s-14.3-32-32-32H64z"/></svg>`;
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
@@ -152,7 +153,7 @@ const MODE_ICON   = {
 
 function makeDesktopCard(d) {
   const card = document.createElement("div");
-  card.className = "desktop-card" + (d.is_current ? " is-current" : "");
+  card.className = "desktop-card";
 
   const monitors = d.monitors || [];
   const wp = d.active_wallpaper;
@@ -192,17 +193,15 @@ function makeDesktopCard(d) {
       }).join('')}
     </div>` : '';
 
-  const currentBadge = d.is_current ? `<div class="current-pill">Active</div>` : '';
   const genTime = wp ? `Generated ${relativeTime(wp.generated_at)}` : "Not yet generated";
 
   const themeText = d.theme
     ? `<span class="prompt-text">${esc(d.theme)}</span>`
     : `<span class="prompt-text empty">No theme set</span>`;
 
-  const usedPrompt = wp?.prompt_text
-    ? `<div class="used-prompt" title="${esc(wp.prompt_text)}">
-         ${wp.prompt_is_ai ? '<span class="ai-badge-sm">AI</span>' : ''}
-         <span class="used-prompt-text">${esc(wp.prompt_text.slice(0, 160))}${wp.prompt_text.length > 160 ? '…' : ''}</span>
+  const promptPeekHtml = wp?.prompt_text
+    ? `<div class="prompt-peek-wrap" data-prompt="${esc(wp.prompt_text)}">
+         <button class="icon-btn prompt-peek-btn" tabindex="-1">${ICON_SCROLL}</button>
        </div>`
     : '';
 
@@ -210,8 +209,6 @@ function makeDesktopCard(d) {
     <div class="desktop-thumb-wrap">
       ${mainThumbHtml}
       ${monitorsStripHtml}
-      ${currentBadge}
-      <div class="desktop-index-badge">Desktop ${d.index + 1}</div>
     </div>
     <div class="desktop-body">
       <div class="desktop-name">${esc(d.name)}</div>
@@ -220,12 +217,12 @@ function makeDesktopCard(d) {
         ${themeText}
         <span class="prompt-edit-hint">${ICON_PEN}</span>
       </div>
-      ${usedPrompt}
       <div class="desktop-actions">
         <button class="icon-btn icon-btn-gold" title="Regenerate" onclick="generateOne('${d.guid}', this)">
           ${ICON_ROTATE}
         </button>
         ${wp ? `<button class="icon-btn" title="History" onclick="viewHistory('${d.guid}')">${ICON_CLOCK}</button>` : ""}
+        ${promptPeekHtml}
       </div>
     </div>`;
 

@@ -89,11 +89,18 @@ async def _generate_one_image(
     Submit one ComfyUI generation (with a fresh random seed) and return
     (filename, subfolder) of the output image, or None on failure.
     """
-    # Replace {{prompt}} and {{seed}} placeholders anywhere in the workflow JSON
+    # Replace {{prompt}} placeholder anywhere in the workflow JSON
     workflow_str = json.dumps(workflow_template)
     workflow_str = workflow_str.replace("{{prompt}}", prompt_text)
-    workflow_str = workflow_str.replace('"{{seed}}"', str(random.randint(0, 2**32 - 1)))
     workflow = json.loads(workflow_str)
+
+    # Replace {{seed}} placeholder with a real integer (must not be a string for ComfyUI)
+    seed_value = random.randint(0, 2**32 - 1)
+    for node in workflow.values():
+        if isinstance(node, dict):
+            inputs = node.get("inputs", {})
+            if inputs.get("seed") == "{{seed}}":
+                inputs["seed"] = seed_value
 
     try:
         comfy_id = await comfyui_client.submit_workflow(workflow)

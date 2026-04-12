@@ -690,6 +690,103 @@ html, body {
   letter-spacing: 0.04em;
 }
 
+/* ── Multi-monitor thumbnail grid ────────────────────────────────────────── */
+.desktop-thumb-grid {
+  display: grid;
+  width: 100%; height: 100%;
+}
+.desktop-thumb-grid .desktop-thumb {
+  border-right: 1px solid rgba(0,0,0,0.5);
+}
+.desktop-thumb-grid .desktop-thumb:last-child {
+  border-right: none;
+}
+
+/* ── Monitor config modal ────────────────────────────────────────────────── */
+.monitor-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+.monitor-row:last-child { border-bottom: none; }
+
+.monitor-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--t2);
+}
+.monitor-path {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--t3);
+}
+
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  width: 36px; height: 20px;
+  flex-shrink: 0;
+}
+.toggle-switch input { display: none; }
+.toggle-track {
+  display: block;
+  width: 100%; height: 100%;
+  background: rgba(255,255,255,0.10);
+  border-radius: 10px;
+  cursor: pointer;
+  position: relative;
+  transition: background .2s;
+}
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  background: var(--t3);
+  border-radius: 50%;
+  top: 3px; left: 3px;
+  transition: transform .2s, background .2s;
+}
+.toggle-switch input:checked + .toggle-track { background: var(--gold-dim); }
+.toggle-switch input:checked + .toggle-track::after {
+  transform: translateX(16px);
+  background: var(--gold);
+}
+
+/* Monitor mode selector */
+.monitor-mode-section {
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--glass-border);
+}
+.field-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--t3);
+  display: block;
+  margin-bottom: 8px;
+}
+.radio-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--t2);
+  cursor: pointer;
+}
+.radio-label input[type="radio"] { accent-color: var(--gold); }
+
 .field-note-inline {
   font-size: 9px;
   font-weight: 400;

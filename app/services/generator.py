@@ -12,10 +12,12 @@ from typing import Optional
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import AsyncSessionLocal, Desktop, Prompt, Wallpaper
 from app.services import comfyui_client, comfyui_process, wallpaper_setter
 from app.services.desktop_detector import get_desktops, get_current_desktop_guid, DesktopInfo
+from app.services.monitor_detector import get_monitors
 
 logger = logging.getLogger(__name__)
 
@@ -69,18 +71,55 @@ async def _get_or_create_desktop(session: AsyncSession, info: DesktopInfo) -> De
     return desktop
 
 
+async def _generate_one_image(
+    workflow_template: dict,
+    cfg: dict,
+    prompt_text: str,
+) -> tuple[str, str] | None:
+    """
+    Submit one ComfyUI generation (with a fresh random seed) and return
+    (filename, subfolder) of the output image, or None on failure.
+    """
+    workflow = json.loads(json.dumps(workflow_template))  # deep copy
+
+    pos_node = cfg.get("positive_prompt_node_id")
+    neg_node = cfg.get("negative_prompt_node_id")
+    seed_node = cfg.get("seed_node_id")
+
+    if pos_node:
+        comfyui_client.inject_prompt(workflow, str(pos_node), prompt_text)
+    if neg_node:
+        comfyui_client.inject_prompt(workflow, str(neg_node), cfg.get("negative_prompt", ""))
+    if seed_node and str(seed_node) in workflow:
+        workflow[str(seed_node)]["inputs"]["seed"] = random.randint(0, 2**32 - 1)
+
+    try:
+        comfy_id = await comfyui_client.submit_workflow(workflow)
+    except Exception as e:
+        logger.error("Failed to submit workflow: %s", e)
+        return None
+
+    outputs = await comfyui_client.poll_until_done(comfy_id)
+    if not outputs:
+        logger.error("Generation timed out")
+        return None
+
+    return _extract_first_image(outputs)
+
+
 async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | None = None) -> bool:
     """
     Generate a wallpaper for one virtual desktop.
+    Respects per-monitor config: disabled monitors are skipped; mode=original
+    produces a unique image per active monitor, mode=repeated shares one image.
     Returns True on success.
     """
     cfg = _load_config()
-    workflow = _load_workflow()
-    if workflow is None:
+    workflow_template = _load_workflow()
+    if workflow_template is None:
         logger.error("Cannot generate: workflow.json missing")
         return False
 
-    # Check ComfyUI is reachable
     if not await comfyui_process.is_running():
         logger.info("ComfyUI not available on port %s — skipping", cfg.get("comfyui_port", 8188))
         return False
@@ -89,8 +128,16 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
         desktop = await _get_or_create_desktop(session, desktop_info)
         await session.commit()
 
+        # Reload with monitor_configs relationship
+        desktop = (await session.execute(
+            select(Desktop)
+            .options(selectinload(Desktop.monitor_configs))
+            .where(Desktop.id == desktop.id)
+        )).scalar_one()
+
+        # ── Resolve prompt ────────────────────────────────────────────────────
         default_prompt = cfg.get("default_prompt", "a beautiful landscape wallpaper")
-        prompt_id: int | None = None
+        db_prompt_id: int | None = None
         if prompt_text is None:
             if desktop.theme:
                 from app.services.prompt_generator import generate_prompt_for_desktop as _ai_gen
@@ -111,79 +158,105 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
                     session.add(new_prompt)
                     await session.flush()
                     prompt_text = ai_text
-                    prompt_id = new_prompt.id
+                    db_prompt_id = new_prompt.id
                 else:
                     logger.warning("AI prompt generation failed for %s, falling back", desktop_info.guid)
-                    prompt_id, prompt_text = await _get_active_prompt(session, desktop.id, default_prompt)
+                    db_prompt_id, prompt_text = await _get_active_prompt(session, desktop.id, default_prompt)
             else:
-                prompt_id, prompt_text = await _get_active_prompt(session, desktop.id, default_prompt)
+                db_prompt_id, prompt_text = await _get_active_prompt(session, desktop.id, default_prompt)
 
-        # Inject prompts into workflow
-        pos_node = cfg.get("positive_prompt_node_id")
-        neg_node = cfg.get("negative_prompt_node_id")
-        seed_node = cfg.get("seed_node_id")
-        if pos_node:
-            comfyui_client.inject_prompt(workflow, str(pos_node), prompt_text)
-        if neg_node:
-            neg_text = cfg.get("negative_prompt", "")
-            comfyui_client.inject_prompt(workflow, str(neg_node), neg_text)
-        if seed_node and seed_node in workflow:
-            workflow[seed_node]["inputs"]["seed"] = random.randint(0, 2**32 - 1)
+        # ── Determine active monitors ─────────────────────────────────────────
+        detected = await asyncio.to_thread(get_monitors)
+        configs_map = {c.monitor_device_path: c for c in desktop.monitor_configs}
 
-        # Submit to ComfyUI
-        try:
-            prompt_id = await comfyui_client.submit_workflow(workflow)
-        except Exception as e:
-            logger.error("Failed to submit workflow: %s", e)
+        active_monitors = []
+        for mon in detected:
+            cfg_row = configs_map.get(mon.device_path)
+            if cfg_row and cfg_row.disabled:
+                continue
+            active_monitors.append(mon)
+
+        if not active_monitors:
+            logger.warning("All monitors disabled for desktop %s — skipping", desktop_info.guid)
             return False
 
-        # Poll for completion
-        outputs = await comfyui_client.poll_until_done(prompt_id)
-        if not outputs:
-            logger.error("Generation timed out for desktop %s", desktop_info.guid)
-            return False
+        mode = desktop.wallpaper_mode or "repeated"
 
-        # Find the output image
-        image_info = _extract_first_image(outputs)
-        if not image_info:
-            logger.error("No output image found in ComfyUI response")
-            return False
+        # ── Build generation targets ──────────────────────────────────────────
+        # targets: list of (monitor_device_path | None) — None = "all active monitors"
+        if mode == "repeated":
+            targets: list[str | None] = [None]
+        else:
+            targets = [mon.device_path for mon in active_monitors]
 
-        filename, subfolder = image_info
-
-        # Save image locally
+        # ── Generate images ───────────────────────────────────────────────────
         today = date.today().isoformat()
         output_dir = cfg.get("output_dir", os.path.join(BASE_DIR, "output"))
-        dest_path = os.path.join(output_dir, today, f"{desktop_info.guid[:8]}_{filename}")
-        if not await comfyui_client.download_image(filename, subfolder, dest_path):
-            return False
+        generated_pairs: list[tuple[str | None, str]] = []
 
-        # Deactivate all previous wallpapers for this desktop first
-        await session.execute(
-            update(Wallpaper)
-            .where(Wallpaper.desktop_id == desktop.id)
-            .values(is_active=False)
-            .execution_options(synchronize_session=False)
-        )
+        for target_path in targets:
+            image_info = await _generate_one_image(workflow_template, cfg, prompt_text)
+            if image_info is None:
+                return False
 
-        # Insert the new active wallpaper
-        wallpaper = Wallpaper(
-            desktop_id=desktop.id,
-            prompt_id=prompt_id,
-            file_path=dest_path,
-            generated_at=datetime.utcnow(),
-            is_active=True,
-        )
-        session.add(wallpaper)
+            filename, subfolder = image_info
+            if target_path is not None:
+                mon_idx = next((m.index for m in active_monitors if m.device_path == target_path), 0)
+                dest_name = f"{desktop_info.guid[:8]}_m{mon_idx}_{filename}"
+            else:
+                dest_name = f"{desktop_info.guid[:8]}_{filename}"
+
+            dest_path = os.path.join(output_dir, today, dest_name)
+            if not await comfyui_client.download_image(filename, subfolder, dest_path):
+                return False
+
+            generated_pairs.append((target_path, dest_path))
+
+        # ── Update DB ─────────────────────────────────────────────────────────
+        if mode == "repeated":
+            await session.execute(
+                update(Wallpaper)
+                .where(
+                    Wallpaper.desktop_id == desktop.id,
+                    Wallpaper.monitor_device_path == None,  # noqa: E711
+                )
+                .values(is_active=False)
+                .execution_options(synchronize_session=False)
+            )
+        else:
+            for target_path, _ in generated_pairs:
+                await session.execute(
+                    update(Wallpaper)
+                    .where(
+                        Wallpaper.desktop_id == desktop.id,
+                        Wallpaper.monitor_device_path == target_path,
+                    )
+                    .values(is_active=False)
+                    .execution_options(synchronize_session=False)
+                )
+
+        now = datetime.utcnow()
+        for target_path, dest_path in generated_pairs:
+            mon_index = None
+            if target_path is not None:
+                mon_index = next((m.index for m in active_monitors if m.device_path == target_path), None)
+            session.add(Wallpaper(
+                desktop_id=desktop.id,
+                prompt_id=db_prompt_id,
+                file_path=dest_path,
+                generated_at=now,
+                is_active=True,
+                monitor_index=mon_index,
+                monitor_device_path=target_path,
+            ))
+
         await session.commit()
 
-        # Apply wallpaper — pass index info so inactive desktops get a brief
-        # keyboard-driven switch to apply immediately rather than waiting for
-        # the user to manually switch to them.
+        # ── Apply wallpapers ──────────────────────────────────────────────────
         try:
             current_guid = get_current_desktop_guid()
             all_desktops = get_desktops()
-            current_idx  = next(
+            current_idx = next(
                 (d.index for d in all_desktops
                  if current_guid and d.guid.lower() == current_guid.lower()),
                 None,
@@ -191,15 +264,27 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
         except Exception:
             current_idx = None
 
+        # Build (device_path, file_path) pairs for the setter.
+        # For repeated mode: apply the one image to every active monitor.
+        if mode == "repeated":
+            _, repeated_path = generated_pairs[0]
+            apply_pairs: list[tuple[str | None, str]] = [
+                (mon.device_path if mon.device_path else None, repeated_path)
+                for mon in active_monitors
+            ]
+        else:
+            apply_pairs = list(generated_pairs)
+
         await asyncio.to_thread(
-            wallpaper_setter.set_wallpaper_for_desktop,
+            wallpaper_setter.set_wallpapers_for_desktop,
             desktop_info.guid,
-            dest_path,
+            apply_pairs,
             desktop_index=desktop_info.index,
             current_index=current_idx,
         )
 
-    logger.info("Generated wallpaper for desktop %s → %s", desktop_info.name, dest_path)
+    logger.info("Generated wallpaper(s) for desktop %s (%s mode, %d image(s))",
+                desktop_info.name, mode, len(generated_pairs))
     return True
 
 

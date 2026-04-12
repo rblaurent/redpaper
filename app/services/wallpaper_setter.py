@@ -79,6 +79,12 @@ try:
             comtypes.COMMETHOD([], comtypes.HRESULT, "GetWallpaper",
                                (["in"],  ctypes.c_wchar_p, "monitorID"),
                                (["out"], ctypes.POINTER(ctypes.c_wchar_p), "wallpaper")),
+            # vtable order must match IDesktopWallpaper IDL exactly:
+            comtypes.COMMETHOD([], comtypes.HRESULT, "GetMonitorDevicePathAt",
+                               (["in"],  ctypes.c_uint,                    "monitorIndex"),
+                               (["out"], ctypes.POINTER(ctypes.c_wchar_p), "monitorID")),
+            comtypes.COMMETHOD([], comtypes.HRESULT, "GetMonitorDevicePathCount",
+                               (["out"], ctypes.POINTER(ctypes.c_uint), "count")),
         ]
 
     COM_AVAILABLE = True
@@ -102,11 +108,12 @@ def _write_registry(guid: str, abs_path: str) -> bool:
         return False
 
 
-def _apply_com(abs_path: str) -> bool:
+def _apply_com(abs_path: str, monitor_device_path: str | None = None) -> bool:
     """
     Apply wallpaper on the current desktop via IDesktopWallpaper COM.
     Explicitly initialises COM for the calling thread so this works on
     async worker threads that haven't called CoInitialize themselves.
+    Pass monitor_device_path to target a specific monitor; None applies to all.
     """
     if not COM_AVAILABLE:
         return False
@@ -118,7 +125,8 @@ def _apply_com(abs_path: str) -> bool:
         wobj = comtypes.client.CreateObject(
             CLSID_DesktopWallpaper, interface=IDesktopWallpaper
         )
-        wobj.SetWallpaper(None, abs_path)
+        # Empty string also means "all monitors" — normalise to None
+        wobj.SetWallpaper(monitor_device_path or None, abs_path)
         return True
     except Exception as e:
         logger.warning("IDesktopWallpaper.SetWallpaper failed: %s", e)
@@ -246,3 +254,74 @@ def set_wallpaper_current_desktop(image_path: str) -> bool:
     if _apply_com(abs_path):
         return True
     return _apply_spi(abs_path)
+
+
+def set_wallpapers_for_desktop(
+    desktop_guid: str,
+    monitor_wallpapers: list[tuple[str | None, str]],
+    # list of (monitor_device_path_or_None, image_path)
+    desktop_index: int | None = None,
+    current_index: int | None = None,
+) -> bool:
+    """
+    Set wallpapers for one or more monitors on a specific virtual desktop.
+
+    monitor_wallpapers is a list of (monitor_device_path, image_path) pairs.
+    Use None as the device_path to apply to all monitors at once.
+
+    1. Write the first entry's path to the per-desktop registry key.
+    2. Apply immediately — one keyboard switch for inactive desktops regardless
+       of how many monitors need updating.
+    Returns True when the registry write succeeded.
+    """
+    if not monitor_wallpapers:
+        return False
+
+    abs_pairs: list[tuple[str | None, str]] = []
+    for device_path, image_path in monitor_wallpapers:
+        if not os.path.isfile(image_path):
+            logger.error("Wallpaper file not found: %s", image_path)
+            return False
+        abs_path = os.path.abspath(image_path).replace("/", "\\")
+        abs_pairs.append((device_path or None, abs_path))
+
+    # Registry only stores one path per virtual desktop — use the first one
+    reg_ok = _write_registry(desktop_guid, abs_pairs[0][1])
+
+    def _apply_all() -> None:
+        for device_path, abs_path in abs_pairs:
+            if not _apply_com(abs_path, device_path):
+                _apply_spi(abs_path)
+
+    try:
+        from app.services.desktop_detector import get_current_desktop_guid
+        current_guid = get_current_desktop_guid()
+        is_current = current_guid and current_guid.lower() == desktop_guid.lower()
+    except Exception:
+        is_current = False
+
+    if is_current:
+        _apply_all()
+        logger.info("Applied wallpapers (multi-monitor) for current desktop %s", desktop_guid)
+
+    elif desktop_index is not None and current_index is not None:
+        logger.info(
+            "Switching desktop %d → %d to apply wallpapers for %s",
+            current_index, desktop_index, desktop_guid,
+        )
+        _switch_to_desktop(desktop_index, current_index)
+        time.sleep(0.5)
+        _apply_all()
+        time.sleep(0.15)
+        _switch_to_desktop(current_index, desktop_index)
+        time.sleep(0.5)
+        logger.info("Applied wallpapers for inactive desktop %s", desktop_guid)
+
+    else:
+        logger.info(
+            "Registry updated for inactive desktop %s "
+            "(pass desktop_index + current_index for immediate apply)",
+            desktop_guid,
+        )
+
+    return reg_ok

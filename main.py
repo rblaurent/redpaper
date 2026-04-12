@@ -54,6 +54,7 @@ app.add_middleware(
 # API routers
 app.include_router(comfyui_router.router)
 app.include_router(desktops_router.router)
+app.include_router(desktops_router.monitors_router)
 app.include_router(wallpapers_router.router)
 
 # Serve generated wallpaper images

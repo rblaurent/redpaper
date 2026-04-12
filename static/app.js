@@ -5,12 +5,14 @@ let desktops = [];
 let historyPage = 1;
 let historyDesktopFilter = "";
 let modalGuid = null;
+let monitorModalGuid = null;
 let _nextRunTime = null;
 
 // SVG icon paths
-const ICON_ROTATE = `<svg width="13" height="13" viewBox="0 0 512 512" fill="currentColor"><path d="M480.1 192l7.9 0c13.3 0 24-10.7 24-24l0-144c0-9.7-5.8-18.5-14.8-22.2S477.9 .2 471 7L419.3 58.8C375 22.1 318 0 256 0 127 0 20.3 95.4 2.6 219.5 .1 237 12.2 253.2 29.7 255.7s33.7-9.7 36.2-27.1C79.2 135.5 159.3 64 256 64 300.4 64 341.2 79 373.7 104.3L327 151c-6.9 6.9-8.9 17.2-5.2 26.2S334.3 192 344 192l136.1 0zm29.4 100.5c2.5-17.5-9.7-33.7-27.1-36.2s-33.7 9.7-36.2 27.1c-13.3 93-93.4 164.5-190.1 164.5-44.4 0-85.2-15-117.7-40.3L185 361c6.9-6.9 8.9-17.2 5.2-26.2S177.7 320 168 320L24 320c-13.3 0-24 10.7-24 24L0 488c0 9.7 5.8 18.5 14.8 22.2S34.1 511.8 41 505l51.8-51.8C137 489.9 194 512 256 512 385 512 491.7 416.6 509.4 292.5z"/></svg>`;
-const ICON_PEN   = `<svg width="12" height="12" viewBox="0 0 512 512" fill="currentColor"><path d="M352.9 21.2L308 66.1 445.9 204 490.8 159.1C504.4 145.6 512 127.2 512 108s-7.6-37.6-21.2-51.1L455.1 21.2C441.6 7.6 423.2 0 404 0s-37.6 7.6-51.1 21.2zM274.1 100L58.9 315.1c-10.7 10.7-18.5 24.1-22.6 38.7L.9 481.6c-2.3 8.3 0 17.3 6.2 23.4s15.1 8.5 23.4 6.2l127.8-35.5c14.6-4.1 27.9-11.8 38.7-22.6L412 237.9 274.1 100z"/></svg>`;
-const ICON_CLOCK = `<svg width="12" height="12" viewBox="0 0 512 512" fill="currentColor"><path d="M256 0a256 256 0 1 1 0 512A256 256 0 1 1 256 0zM232 120l0 136c0 8 4 15.5 10.7 20l96 64c11 7.4 25.9 4.5 33.3-6.5s4.5-25.9-6.5-33.3L280 243.2 280 120c0-13.3-10.7-24-24-24s-24 10.7-24 24z"/></svg>`;
+const ICON_ROTATE   = `<svg width="13" height="13" viewBox="0 0 512 512" fill="currentColor"><path d="M480.1 192l7.9 0c13.3 0 24-10.7 24-24l0-144c0-9.7-5.8-18.5-14.8-22.2S477.9 .2 471 7L419.3 58.8C375 22.1 318 0 256 0 127 0 20.3 95.4 2.6 219.5 .1 237 12.2 253.2 29.7 255.7s33.7-9.7 36.2-27.1C79.2 135.5 159.3 64 256 64 300.4 64 341.2 79 373.7 104.3L327 151c-6.9 6.9-8.9 17.2-5.2 26.2S334.3 192 344 192l136.1 0zm29.4 100.5c2.5-17.5-9.7-33.7-27.1-36.2s-33.7 9.7-36.2 27.1c-13.3 93-93.4 164.5-190.1 164.5-44.4 0-85.2-15-117.7-40.3L185 361c6.9-6.9 8.9-17.2 5.2-26.2S177.7 320 168 320L24 320c-13.3 0-24 10.7-24 24L0 488c0 9.7 5.8 18.5 14.8 22.2S34.1 511.8 41 505l51.8-51.8C137 489.9 194 512 256 512 385 512 491.7 416.6 509.4 292.5z"/></svg>`;
+const ICON_PEN      = `<svg width="12" height="12" viewBox="0 0 512 512" fill="currentColor"><path d="M352.9 21.2L308 66.1 445.9 204 490.8 159.1C504.4 145.6 512 127.2 512 108s-7.6-37.6-21.2-51.1L455.1 21.2C441.6 7.6 423.2 0 404 0s-37.6 7.6-51.1 21.2zM274.1 100L58.9 315.1c-10.7 10.7-18.5 24.1-22.6 38.7L.9 481.6c-2.3 8.3 0 17.3 6.2 23.4s15.1 8.5 23.4 6.2l127.8-35.5c14.6-4.1 27.9-11.8 38.7-22.6L412 237.9 274.1 100z"/></svg>`;
+const ICON_CLOCK    = `<svg width="12" height="12" viewBox="0 0 512 512" fill="currentColor"><path d="M256 0a256 256 0 1 1 0 512A256 256 0 1 1 256 0zM232 120l0 136c0 8 4 15.5 10.7 20l96 64c11 7.4 25.9 4.5 33.3-6.5s4.5-25.9-6.5-33.3L280 243.2 280 120c0-13.3-10.7-24-24-24s-24 10.7-24 24z"/></svg>`;
+const ICON_MONITORS = `<svg width="12" height="12" viewBox="0 0 576 512" fill="currentColor"><path d="M64 0C28.7 0 0 28.7 0 64V352c0 35.3 28.7 64 64 64H240l-10.7 32H160c-17.7 0-32 14.3-32 32s14.3 32 32 32H416c17.7 0 32-14.3 32-32s-14.3-32-32-32H346.7L336 416H512c35.3 0 64-28.7 64-64V64c0-35.3-28.7-64-64-64H64zM512 64V352H64V64H512z"/></svg>`;
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
@@ -144,16 +146,30 @@ function makeDesktopCard(d) {
   const card = document.createElement("div");
   card.className = "desktop-card" + (d.is_current ? " is-current" : "");
 
-  const wp = d.active_wallpaper;
-  const thumbHtml = wp
-    ? `<img class="desktop-thumb" src="/output/${encodeImagePath(wp.file_path)}" alt="" loading="lazy">`
-    : `<div class="desktop-thumb-placeholder">
+  const wps = d.active_wallpapers || (d.active_wallpaper ? [d.active_wallpaper] : []);
+  const wp  = wps[0] || null;
+
+  // Multi-thumbnail: show a side-by-side grid when there are multiple distinct images
+  let thumbHtml;
+  const multiMonitor = wps.length > 1 && wps.some(w => w.monitor_device_path !== null);
+  if (multiMonitor) {
+    const cols = wps.length;
+    thumbHtml = `<div class="desktop-thumb-grid" style="grid-template-columns:repeat(${cols},1fr)">
+      ${wps.map(w =>
+        `<img class="desktop-thumb" src="/output/${encodeImagePath(w.file_path)}" alt="" loading="lazy">`
+      ).join("")}
+    </div>`;
+  } else if (wp) {
+    thumbHtml = `<img class="desktop-thumb" src="/output/${encodeImagePath(wp.file_path)}" alt="" loading="lazy">`;
+  } else {
+    thumbHtml = `<div class="desktop-thumb-placeholder">
         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
           <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
           <polyline points="21,15 16,10 5,21"/>
         </svg>
         <span>No wallpaper yet</span>
       </div>`;
+  }
 
   const genTime = wp
     ? `Generated ${relativeTime(wp.generated_at)}`
@@ -190,6 +206,9 @@ function makeDesktopCard(d) {
       <div class="desktop-actions">
         <button class="icon-btn icon-btn-gold" title="Regenerate" onclick="generateOne('${d.guid}', this)">
           ${ICON_ROTATE}
+        </button>
+        <button class="icon-btn" title="Monitor setup" onclick="openMonitorModal('${d.guid}', '${esc(d.name)}')">
+          ${ICON_MONITORS}
         </button>
         ${wp ? `<button class="icon-btn" title="History" onclick="viewHistory('${d.guid}')">${ICON_CLOCK}</button>` : ""}
       </div>
@@ -373,6 +392,97 @@ async function saveSettings() {
   } catch (e) {
     status.textContent = "Error: " + e.message;
     status.style.color = "#f87171";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Monitor modal ─────────────────────────────────────────────────────────────
+async function openMonitorModal(guid, name) {
+  monitorModalGuid = guid;
+  document.getElementById("monitor-modal-desktop").textContent = name;
+  document.getElementById("monitor-modal").style.display = "flex";
+  document.getElementById("monitor-list").innerHTML = '<div class="loading-msg">Detecting monitors…</div>';
+
+  try {
+    const [systemMonitors, desktopConfig] = await Promise.all([
+      api("/api/monitors"),
+      api(`/api/desktops/${guid}/monitors`),
+    ]);
+
+    // Merge: use detected monitors (system source of truth) with desktop config overlaid
+    const configMap = Object.fromEntries(
+      (desktopConfig.monitors || []).map(m => [m.monitor_device_path, m])
+    );
+
+    const monitors = systemMonitors.map(sm => ({
+      device_path: sm.device_path,
+      index: sm.index,
+      disabled: configMap[sm.device_path]?.disabled ?? false,
+    }));
+
+    renderMonitorList(monitors);
+
+    // Set mode radio
+    const mode = desktopConfig.wallpaper_mode || "repeated";
+    document.querySelector(`input[name="monitor-mode"][value="${mode}"]`).checked = true;
+  } catch (e) {
+    document.getElementById("monitor-list").innerHTML =
+      `<div class="loading-msg">Error: ${e.message}</div>`;
+  }
+}
+
+function renderMonitorList(monitors) {
+  const list = document.getElementById("monitor-list");
+  if (!monitors.length) {
+    list.innerHTML = '<div class="loading-msg">No monitors detected.</div>';
+    return;
+  }
+  list.innerHTML = monitors.map((mon, i) => {
+    const label = `Monitor ${mon.index + 1}`;
+    const path  = mon.device_path || "unknown";
+    const checked = mon.disabled ? "" : "checked";
+    return `
+      <div class="monitor-row">
+        <label class="toggle-switch">
+          <input type="checkbox" ${checked} data-path="${esc(mon.device_path)}" data-index="${mon.index}">
+          <span class="toggle-track"></span>
+        </label>
+        <div class="monitor-label">
+          <div>${label}</div>
+          <div class="monitor-path">${esc(path)}</div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function closeMonitorModal(e) {
+  if (e && e.target !== document.getElementById("monitor-modal")) return;
+  document.getElementById("monitor-modal").style.display = "none";
+  monitorModalGuid = null;
+}
+
+async function saveMonitorConfig() {
+  if (!monitorModalGuid) return;
+  const btn = document.getElementById("monitor-save-btn");
+  btn.disabled = true;
+
+  const mode = document.querySelector('input[name="monitor-mode"]:checked')?.value || "repeated";
+
+  const monitors = Array.from(
+    document.querySelectorAll("#monitor-list input[type=checkbox]")
+  ).map(cb => ({
+    monitor_device_path: cb.dataset.path,
+    monitor_index: parseInt(cb.dataset.index, 10),
+    disabled: !cb.checked,
+  }));
+
+  try {
+    await api(`/api/desktops/${monitorModalGuid}/monitors`, "PUT", { mode, monitors });
+    document.getElementById("monitor-modal").style.display = "none";
+    monitorModalGuid = null;
+  } catch (e) {
+    alert("Failed to save: " + e.message);
   } finally {
     btn.disabled = false;
   }

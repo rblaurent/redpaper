@@ -110,6 +110,39 @@
     </div>
   </div>
 
+  <!-- Monitor config modal -->
+  <div id="monitor-modal" class="modal-backdrop" style="display:none" onclick="closeMonitorModal(event)">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title">Monitor Setup</h3>
+          <p class="modal-desktop-name" id="monitor-modal-desktop"></p>
+        </div>
+        <button class="icon-btn" onclick="closeMonitorModal()">
+          <svg width="14" height="14" viewBox="0 0 384 512" fill="currentColor"><path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z"/></svg>
+        </button>
+      </div>
+      <div id="monitor-list"></div>
+      <div class="monitor-mode-section" id="monitor-mode-section">
+        <label class="field-label">Wallpaper mode</label>
+        <div class="radio-row">
+          <label class="radio-label">
+            <input type="radio" name="monitor-mode" value="repeated">
+            Same image on all active monitors
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="monitor-mode" value="original">
+            Unique image per monitor
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="glass-btn-outline" onclick="closeMonitorModal()">Cancel</button>
+        <button class="glass-btn-primary" id="monitor-save-btn" onclick="saveMonitorConfig()">Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Theme prompt modal -->
   <div id="prompt-modal" class="modal-backdrop" style="display:none" onclick="closePromptModal(event)">
     <div class="modal-box">

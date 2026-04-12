@@ -2,7 +2,8 @@ import json
 import os
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, Boolean, DateTime, ForeignKey, Text, create_engine, text
+    Column, Integer, String, Boolean, DateTime, ForeignKey, Text, UniqueConstraint,
+    create_engine, text
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
@@ -27,8 +28,11 @@ class Desktop(Base):
     theme_style = Column(String(256), nullable=True)
     workspace_path = Column(String(512), nullable=True)
 
+    wallpaper_mode = Column(String(16), nullable=False, default="repeated")  # "repeated" | "original"
+
     prompts = relationship("Prompt", back_populates="desktop", cascade="all, delete-orphan")
     wallpapers = relationship("Wallpaper", back_populates="desktop", cascade="all, delete-orphan")
+    monitor_configs = relationship("MonitorConfig", back_populates="desktop", cascade="all, delete-orphan")
 
 
 class Prompt(Base):
@@ -54,9 +58,27 @@ class Wallpaper(Base):
     file_path = Column(String(512), nullable=False)
     generated_at = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=False)
+    monitor_index = Column(Integer, nullable=True)        # NULL = legacy/repeated
+    monitor_device_path = Column(String(256), nullable=True)  # NULL = legacy/repeated
 
     desktop = relationship("Desktop", back_populates="wallpapers")
     prompt = relationship("Prompt", back_populates="wallpapers")
+
+
+class MonitorConfig(Base):
+    __tablename__ = "monitor_configs"
+
+    id = Column(Integer, primary_key=True)
+    desktop_id = Column(Integer, ForeignKey("desktops.id"), nullable=False)
+    monitor_device_path = Column(String(256), nullable=False)  # e.g. "\\.\DISPLAY1\Monitor0"
+    monitor_index = Column(Integer, nullable=False)             # 0-based, informational
+    disabled = Column(Boolean, nullable=False, default=False)
+
+    desktop = relationship("Desktop", back_populates="monitor_configs")
+
+    __table_args__ = (
+        UniqueConstraint("desktop_id", "monitor_device_path", name="uq_monitor_config_desktop_monitor"),
+    )
 
 
 # Engine + session factory
@@ -73,6 +95,17 @@ async def init_db():
             "ALTER TABLE desktops ADD COLUMN theme_style TEXT",
             "ALTER TABLE desktops ADD COLUMN workspace_path TEXT",
             "ALTER TABLE prompts ADD COLUMN is_ai_generated INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE desktops ADD COLUMN wallpaper_mode TEXT NOT NULL DEFAULT 'repeated'",
+            "ALTER TABLE wallpapers ADD COLUMN monitor_index INTEGER",
+            "ALTER TABLE wallpapers ADD COLUMN monitor_device_path TEXT",
+            """CREATE TABLE IF NOT EXISTS monitor_configs (
+                id INTEGER PRIMARY KEY,
+                desktop_id INTEGER NOT NULL REFERENCES desktops(id),
+                monitor_device_path TEXT NOT NULL,
+                monitor_index INTEGER NOT NULL,
+                disabled INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(desktop_id, monitor_device_path)
+            )""",
         ]:
             try:
                 await conn.execute(text(sql))

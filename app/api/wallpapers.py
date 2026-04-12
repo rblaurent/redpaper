@@ -4,7 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import Desktop, Prompt, Wallpaper, get_db
-from app.services.wallpaper_setter import set_wallpaper_for_desktop
+from app.services.wallpaper_setter import set_wallpapers_for_desktop
 
 router = APIRouter(prefix="/api", tags=["wallpapers"])
 
@@ -37,6 +37,8 @@ async def list_wallpapers(
             "file_path": w.file_path,
             "generated_at": w.generated_at.isoformat(),
             "is_active": w.is_active,
+            "monitor_index": w.monitor_index,
+            "monitor_device_path": w.monitor_device_path,
         }
         for w in rows
     ]
@@ -57,16 +59,27 @@ async def apply_wallpaper(wallpaper_id: int, db: AsyncSession = Depends(get_db))
     if not desktop:
         raise HTTPException(status_code=404, detail="Desktop not found")
 
-    # Update active flag
-    await db.execute(
-        update(Wallpaper)
-        .where(Wallpaper.desktop_id == desktop.id)
-        .values(is_active=False)
-    )
+    # Deactivate only wallpapers for the same monitor slot (preserves other monitors)
+    if wp.monitor_device_path is None:
+        # Legacy or repeated-mode wallpaper — deactivate all for this desktop
+        await db.execute(
+            update(Wallpaper)
+            .where(Wallpaper.desktop_id == desktop.id)
+            .values(is_active=False)
+        )
+    else:
+        await db.execute(
+            update(Wallpaper)
+            .where(
+                Wallpaper.desktop_id == desktop.id,
+                Wallpaper.monitor_device_path == wp.monitor_device_path,
+            )
+            .values(is_active=False)
+        )
     wp.is_active = True
     await db.commit()
 
-    set_wallpaper_for_desktop(desktop.guid, wp.file_path)
+    set_wallpapers_for_desktop(desktop.guid, [(wp.monitor_device_path, wp.file_path)])
     return {"status": "applied", "file_path": wp.file_path}
 
 

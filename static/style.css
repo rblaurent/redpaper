@@ -312,7 +312,7 @@ html, body {
 .mon-thumb {
   position: relative;
   flex-shrink: 0;
-  height: 68px;       /* fixed height; width is auto via inline aspect-ratio */
+  height: 122px;      /* fixed height; width is auto via inline aspect-ratio */
   border-radius: 4px;
   overflow: hidden;
   border: none;

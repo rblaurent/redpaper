@@ -113,20 +113,32 @@ async def generate_prompt_for_desktop(desktop, today: date) -> str | None:
 
 REFINE_THEME_TEMPLATE = """You are helping a user manage wallpaper themes for their desktop.
 
-Current theme description:
+IMPORTANT — understand the two-level system:
+- A THEME is a persistent creative brief written in rich prose. It defines the visual world, mood, color palette, atmosphere, and style references that should guide the desktop. It is NOT an image generation prompt — it is human-readable guidelines that will later be used as creative direction to generate a new image every day.
+- A DAILY PROMPT is what gets generated each day FROM the theme: a short, keyword-heavy ComfyUI prompt for the diffusion model.
+
+You are editing the THEME (the creative brief), not writing a daily prompt.
+
+Current theme:
 ---
 {current_theme}
 ---
 
 User instruction: {instruction}
 
-Rewrite the theme description to reflect the instruction. Keep the same style (a rich, evocative description of visual world, mood, palette, and references). Output ONLY the updated theme text — no explanation, no markdown, no quotes, no preamble."""
+Rewrite the theme to reflect the instruction. Keep it as flowing prose (2–5 sentences). Describe the visual world, mood, palette, atmosphere, and any style or artistic references. Do NOT write comma-separated keywords, technical tags, or anything that looks like an image generation prompt. Output ONLY the updated theme text — no explanation, no markdown, no quotes, no preamble."""
 
 CREATE_THEME_TEMPLATE = """You are helping a user set up a wallpaper theme for their desktop.
 
+IMPORTANT — understand the two-level system:
+- A THEME is a persistent creative brief written in rich prose. It defines the visual world, mood, color palette, atmosphere, and style references that should guide the desktop. It is NOT an image generation prompt — it is human-readable guidelines that will later be used as creative direction to generate a new image every day.
+- A DAILY PROMPT is what gets generated each day FROM the theme: a short, keyword-heavy ComfyUI prompt for the diffusion model.
+
+You are writing the THEME (the creative brief), not a daily prompt.
+
 User request: {instruction}
 
-Write a rich wallpaper theme description based on this request. The description should cover visual world, mood, color palette, atmosphere, and style references. Output ONLY the theme text — no explanation, no markdown, no quotes, no preamble."""
+Write a theme as flowing prose (2–5 sentences). Describe the visual world, mood, color palette, atmosphere, and any style or artistic references. Do NOT write comma-separated keywords, technical tags, or anything that looks like an image generation prompt. Output ONLY the theme text — no explanation, no markdown, no quotes, no preamble."""
 
 
 async def refine_theme(current_theme: str | None, instruction: str) -> str | None:

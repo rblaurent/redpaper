@@ -87,6 +87,14 @@
         </div>
       </div>
       <div class="field-group">
+        <label>Claude CLI path</label>
+        <input type="text" id="cfg-claude-path" class="glass-input" placeholder="claude  or  C:/path/to/claude.cmd" />
+        <div class="comfyui-status-row">
+          <span id="claude-dot" class="status-dot dot-unknown"></span>
+          <span id="claude-label">checking…</span>
+        </div>
+      </div>
+      <div class="field-group">
         <label>ComfyUI port</label>
         <input type="number" id="cfg-comfyui-port" placeholder="8188" class="glass-input" />
         <div class="comfyui-status-row">
@@ -102,20 +110,21 @@
     </div>
   </div>
 
-  <!-- Prompt modal -->
+  <!-- Theme prompt modal -->
   <div id="prompt-modal" class="modal-backdrop" style="display:none" onclick="closePromptModal(event)">
     <div class="modal-box">
       <div class="modal-header">
-        <h3 class="modal-title">Edit Prompt</h3>
+        <h3 class="modal-title">Theme Prompt</h3>
         <button class="icon-btn" onclick="closePromptModal()">
           <svg width="14" height="14" viewBox="0 0 384 512" fill="currentColor"><path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z"/></svg>
         </button>
       </div>
       <p class="modal-desktop-name" id="modal-desktop-name"></p>
-      <textarea id="modal-prompt-input" class="glass-input modal-textarea" rows="5" placeholder="Describe the wallpaper for this desktop…"></textarea>
+      <textarea id="modal-theme-input" class="glass-input modal-textarea" rows="6"
+        placeholder="Describe the visual world for this desktop — theme, style, mood, palette, references… Claude will generate a fresh specific image prompt from this each day."></textarea>
       <div class="modal-footer">
         <button class="glass-btn-outline" onclick="closePromptModal()">Cancel</button>
-        <button class="glass-btn-primary" id="modal-save-btn" onclick="saveModalPrompt()">Save Prompt</button>
+        <button class="glass-btn-primary" id="modal-save-btn" onclick="saveModal()">Save</button>
       </div>
     </div>
   </div>

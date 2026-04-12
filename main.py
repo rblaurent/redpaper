@@ -82,6 +82,7 @@ async def get_config():
         "negative_prompt_node_id": cfg.get("negative_prompt_node_id"),
         "default_prompt": cfg.get("default_prompt"),
         "negative_prompt": cfg.get("negative_prompt", ""),
+        "claude_path": cfg.get("claude_path", "claude"),
     }
 
 
@@ -91,6 +92,7 @@ async def save_config(body: dict):
     allowed = {
         "schedule_cron", "comfyui_port", "positive_prompt_node_id",
         "negative_prompt_node_id", "default_prompt", "negative_prompt",
+        "claude_path",
     }
     for key in allowed:
         if key in body:
@@ -100,6 +102,14 @@ async def save_config(body: dict):
         json.dump(cfg, f, indent=2)
     return {"status": "saved"}
 
+
+@app.get("/api/claude/status")
+async def claude_status():
+    import shutil as _shutil
+    cfg = load_config()
+    path = cfg.get("claude_path", "") or _shutil.which("claude") or ""
+    found = bool(path and os.path.isfile(path))
+    return {"path": path, "found": found}
 
 
 if __name__ == "__main__":

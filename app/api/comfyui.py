@@ -1,3 +1,7 @@
+import json
+import os
+import shutil
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
@@ -7,10 +11,24 @@ from app.services.desktop_detector import get_desktops
 from app.services.generator import generate_all, generate_for_desktop
 from app.services.scheduler import get_next_run, trigger_now
 
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 router = APIRouter(prefix="/api/comfyui", tags=["comfyui"])
 
 # Track in-progress generation to avoid duplicates
 _generating: bool = False
+
+
+@router.get("/claude-status")
+async def claude_status():
+    try:
+        with open(os.path.join(_BASE_DIR, "config.json")) as f:
+            cfg = json.load(f)
+    except Exception:
+        cfg = {}
+    path = cfg.get("claude_path", "") or shutil.which("claude") or ""
+    found = bool(path and os.path.isfile(path))
+    return {"path": path, "found": found}
 
 
 @router.get("/status")

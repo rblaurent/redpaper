@@ -99,6 +99,7 @@ async def list_prompts(
             "text": p.text,
             "created_at": p.created_at.isoformat(),
             "is_active": p.is_active,
+            "is_ai_generated": p.is_ai_generated,
         }
         for p in rows
     ]
@@ -129,7 +130,7 @@ async def create_prompt(body: PromptCreate, db: AsyncSession = Depends(get_db)):
         .values(is_active=False)
     )
 
-    prompt = Prompt(desktop_id=desktop.id, text=body.text, is_active=True)
+    prompt = Prompt(desktop_id=desktop.id, text=body.text, is_active=True, is_ai_generated=False)
     db.add(prompt)
     await db.commit()
     return {"id": prompt.id, "text": prompt.text}

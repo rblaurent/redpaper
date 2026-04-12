@@ -17,7 +17,9 @@ document.addEventListener("DOMContentLoaded", () => {
   loadConfig();
   loadDesktops();
   fetchStatus();
+  refreshClaudeStatus();
   setInterval(updateCountdown, 30000);
+  setInterval(refreshClaudeStatus, 15000);
 
   document.getElementById("btn-generate-all").addEventListener("click", generateAll);
   document.getElementById("btn-save-settings").addEventListener("click", saveSettings);
@@ -103,6 +105,25 @@ async function fetchStatus() {
   }
 }
 
+async function refreshClaudeStatus() {
+  const dot   = document.getElementById("claude-dot");
+  const label = document.getElementById("claude-label");
+  if (!dot || !label) return;
+  try {
+    const data = await api("/api/comfyui/claude-status");
+    if (data.found) {
+      dot.className = "status-dot dot-ok";
+      label.textContent = "claude found";
+    } else {
+      dot.className = "status-dot dot-err";
+      label.textContent = data.path ? "not found at path" : "not configured";
+    }
+  } catch {
+    dot.className = "status-dot dot-unknown";
+    label.textContent = "unknown";
+  }
+}
+
 // ── Desktops ──────────────────────────────────────────────────────────────────
 async function loadDesktops() {
   const grid = document.getElementById("desktops-grid");
@@ -141,9 +162,9 @@ function makeDesktopCard(d) {
   const currentBadge = d.is_current
     ? `<div class="current-pill">Active</div>` : "";
 
-  const promptText = d.active_prompt
-    ? `<span class="prompt-text">${esc(d.active_prompt)}</span>`
-    : `<span class="prompt-text empty">No prompt set</span>`;
+  const themeText = d.theme
+    ? `<span class="prompt-text">${esc(d.theme)}</span>`
+    : `<span class="prompt-text empty">No theme set</span>`;
 
   card.innerHTML = `
     <div class="desktop-thumb-wrap">
@@ -154,8 +175,8 @@ function makeDesktopCard(d) {
     <div class="desktop-body">
       <div class="desktop-name">${esc(d.name)}</div>
       <div class="desktop-meta">${genTime}</div>
-      <div class="prompt-display" onclick="openPromptModal('${d.guid}', '${esc(d.name)}', this)">
-        ${promptText}
+      <div class="prompt-display" onclick="openPromptModal('${d.guid}', '${esc(d.name)}')">
+        ${themeText}
         <span class="prompt-edit-hint">${ICON_PEN}</span>
       </div>
       <div class="desktop-actions">
@@ -169,14 +190,14 @@ function makeDesktopCard(d) {
   return card;
 }
 
-// ── Prompt modal ──────────────────────────────────────────────────────────────
+// ── Theme prompt modal ────────────────────────────────────────────────────────
 function openPromptModal(guid, name) {
   modalGuid = guid;
   const desktop = desktops.find(d => d.guid === guid);
   document.getElementById("modal-desktop-name").textContent = name;
-  document.getElementById("modal-prompt-input").value = desktop?.active_prompt || "";
+  document.getElementById("modal-theme-input").value = desktop?.theme || "";
   document.getElementById("prompt-modal").style.display = "flex";
-  setTimeout(() => document.getElementById("modal-prompt-input").focus(), 50);
+  setTimeout(() => document.getElementById("modal-theme-input").focus(), 50);
 }
 
 function closePromptModal(e) {
@@ -185,18 +206,18 @@ function closePromptModal(e) {
   modalGuid = null;
 }
 
-async function saveModalPrompt() {
-  const text = document.getElementById("modal-prompt-input").value.trim();
-  if (!text || !modalGuid) return;
+async function saveModal() {
+  if (!modalGuid) return;
   const btn = document.getElementById("modal-save-btn");
   btn.disabled = true;
+  const theme = document.getElementById("modal-theme-input").value.trim();
   try {
-    await api("/api/prompts", "POST", { desktop_guid: modalGuid, text });
+    await api(`/api/desktops/${modalGuid}/theme`, "POST", { theme });
     document.getElementById("prompt-modal").style.display = "none";
     modalGuid = null;
     loadDesktops();
   } catch (e) {
-    alert("Failed to save prompt: " + e.message);
+    alert("Failed to save: " + e.message);
   } finally {
     btn.disabled = false;
   }
@@ -320,6 +341,7 @@ async function loadConfig() {
     document.getElementById("cfg-pos-node").value       = cfg.positive_prompt_node_id ?? "";
     document.getElementById("cfg-neg-node").value       = cfg.negative_prompt_node_id ?? "";
     document.getElementById("cfg-comfyui-port").value   = cfg.comfyui_port ?? 8188;
+    document.getElementById("cfg-claude-path").value    = cfg.claude_path ?? "";
   } catch {}
 }
 
@@ -336,6 +358,7 @@ async function saveSettings() {
       positive_prompt_node_id: document.getElementById("cfg-pos-node").value || null,
       negative_prompt_node_id: document.getElementById("cfg-neg-node").value || null,
       comfyui_port:            parseInt(document.getElementById("cfg-comfyui-port").value, 10) || 8188,
+      claude_path:             document.getElementById("cfg-claude-path").value.trim() || null,
     });
     status.textContent = "Saved!";
     setTimeout(() => status.textContent = "", 2000);
@@ -367,6 +390,13 @@ async function api(path, method = "GET", body = null) {
 
 function esc(str) {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Normalize active_prompt — old server returns a plain string, new server returns an object
+function normalizePrompt(raw) {
+  if (!raw) return null;
+  if (typeof raw === "string") return { text: raw, is_ai_generated: false };
+  return raw;
 }
 
 function encodeImagePath(filePath) {

@@ -91,7 +91,30 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
 
         default_prompt = cfg.get("default_prompt", "a beautiful landscape wallpaper")
         if prompt_text is None:
-            _, prompt_text = await _get_active_prompt(session, desktop.id, default_prompt)
+            if desktop.theme:
+                from app.services.prompt_generator import generate_prompt_for_desktop as _ai_gen
+                ai_text = await _ai_gen(desktop, date.today())
+                if ai_text:
+                    await session.execute(
+                        update(Prompt)
+                        .where(Prompt.desktop_id == desktop.id)
+                        .values(is_active=False)
+                        .execution_options(synchronize_session=False)
+                    )
+                    new_prompt = Prompt(
+                        desktop_id=desktop.id,
+                        text=ai_text,
+                        is_active=True,
+                        is_ai_generated=True,
+                    )
+                    session.add(new_prompt)
+                    await session.flush()
+                    prompt_text = ai_text
+                else:
+                    logger.warning("AI prompt generation failed for %s, falling back", desktop_info.guid)
+                    _, prompt_text = await _get_active_prompt(session, desktop.id, default_prompt)
+            else:
+                _, prompt_text = await _get_active_prompt(session, desktop.id, default_prompt)
 
         # Inject prompts into workflow
         pos_node = cfg.get("positive_prompt_node_id")

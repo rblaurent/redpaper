@@ -2,7 +2,7 @@ import json
 import os
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, Boolean, DateTime, ForeignKey, Text, create_engine
+    Column, Integer, String, Boolean, DateTime, ForeignKey, Text, create_engine, text
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
@@ -23,6 +23,9 @@ class Desktop(Base):
     guid = Column(String(36), unique=True, nullable=False)
     name = Column(String(128), nullable=False, default="Desktop")
     display_order = Column(Integer, nullable=False, default=0)
+    theme = Column(String(256), nullable=True)
+    theme_style = Column(String(256), nullable=True)
+    workspace_path = Column(String(512), nullable=True)
 
     prompts = relationship("Prompt", back_populates="desktop", cascade="all, delete-orphan")
     wallpapers = relationship("Wallpaper", back_populates="desktop", cascade="all, delete-orphan")
@@ -36,6 +39,7 @@ class Prompt(Base):
     text = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
+    is_ai_generated = Column(Boolean, default=False, nullable=False)
 
     desktop = relationship("Desktop", back_populates="prompts")
     wallpapers = relationship("Wallpaper", back_populates="prompt")
@@ -63,6 +67,17 @@ AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_co
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migrations: add columns that didn't exist in older schemas
+        for sql in [
+            "ALTER TABLE desktops ADD COLUMN theme TEXT",
+            "ALTER TABLE desktops ADD COLUMN theme_style TEXT",
+            "ALTER TABLE desktops ADD COLUMN workspace_path TEXT",
+            "ALTER TABLE prompts ADD COLUMN is_ai_generated INTEGER NOT NULL DEFAULT 0",
+        ]:
+            try:
+                await conn.execute(text(sql))
+            except Exception:
+                pass  # column already exists
 
 
 async def get_db():

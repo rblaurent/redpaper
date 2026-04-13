@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import random
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import func, select, update

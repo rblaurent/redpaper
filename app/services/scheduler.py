@@ -77,7 +77,7 @@ async def _watch_desktop_switch():
         # one path per desktop, so all monitors show the same image after reboot).
         logger.info("Startup: applying wallpapers for current desktop %s", current_guid)
 
-    logger.info("Desktop switched → %s, applying wallpapers", current_guid)
+    logger.info("Desktop switched -> %s, applying wallpapers", current_guid)
 
     try:
         from sqlalchemy import select

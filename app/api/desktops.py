@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import Desktop, MonitorConfig, Prompt, Wallpaper, get_db
@@ -290,6 +290,15 @@ async def update_desktop_monitors(
             disabled=(mode == "off"),
             mode=mode,
         ))
+        if mode == "off":
+            await db.execute(
+                update(Wallpaper)
+                .where(
+                    Wallpaper.desktop_id == desktop.id,
+                    Wallpaper.monitor_device_path == item.monitor_device_path,
+                )
+                .values(is_active=False)
+            )
 
     await db.commit()
     return {"saved": len(body.monitors)}

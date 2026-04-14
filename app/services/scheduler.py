@@ -81,7 +81,7 @@ async def _watch_desktop_switch():
 
     try:
         from sqlalchemy import select
-        from app.database import AsyncSessionLocal, Desktop, Wallpaper
+        from app.database import AsyncSessionLocal, Desktop, MonitorConfig, Wallpaper
         from app.services.wallpaper_setter import set_wallpapers_for_desktop
 
         async with AsyncSessionLocal() as session:
@@ -91,16 +91,22 @@ async def _watch_desktop_switch():
             if not desktop:
                 return
 
-            wallpapers = (await session.execute(
-                select(Wallpaper).where(
+            rows = (await session.execute(
+                select(Wallpaper, MonitorConfig.mode)
+                .outerjoin(
+                    MonitorConfig,
+                    (MonitorConfig.desktop_id == Wallpaper.desktop_id)
+                    & (MonitorConfig.monitor_device_path == Wallpaper.monitor_device_path),
+                )
+                .where(
                     Wallpaper.desktop_id == desktop.id,
                     Wallpaper.is_active == True,
                 )
-            )).scalars().all()
-            if not wallpapers:
-                return
+            )).all()
 
-            pairs = [(wp.monitor_device_path, wp.file_path) for wp in wallpapers]
+            pairs = [(wp.monitor_device_path, wp.file_path) for wp, mode in rows if mode != "off"]
+            if not pairs:
+                return
 
         await asyncio.to_thread(set_wallpapers_for_desktop, current_guid, pairs)
         logger.info("Applied %d wallpaper(s) for desktop %s after switch", len(pairs), current_guid)

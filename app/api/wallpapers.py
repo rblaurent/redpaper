@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import Desktop, Prompt, Wallpaper, get_db
+from app.database import Desktop, MonitorConfig, Prompt, Wallpaper, get_db
 from app.services.wallpaper_setter import set_wallpapers_for_desktop
 
 router = APIRouter(prefix="/api", tags=["wallpapers"])
@@ -58,6 +58,16 @@ async def apply_wallpaper(wallpaper_id: int, db: AsyncSession = Depends(get_db))
     )).scalar_one_or_none()
     if not desktop:
         raise HTTPException(status_code=404, detail="Desktop not found")
+
+    if wp.monitor_device_path is not None:
+        cfg = (await db.execute(
+            select(MonitorConfig).where(
+                MonitorConfig.desktop_id == desktop.id,
+                MonitorConfig.monitor_device_path == wp.monitor_device_path,
+            )
+        )).scalar_one_or_none()
+        if cfg and cfg.mode == "off":
+            raise HTTPException(status_code=409, detail="Monitor is off; re-enable it before applying a wallpaper")
 
     # Deactivate only wallpapers for the same monitor slot (preserves other monitors)
     if wp.monitor_device_path is None:

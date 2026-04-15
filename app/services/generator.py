@@ -158,7 +158,7 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
         if prompt_text is None:
             if desktop.theme:
                 from app.services.prompt_generator import generate_prompt_for_desktop as _ai_gen
-                ai_text = await _ai_gen(desktop, date.today())
+                ai_text = await _ai_gen(desktop, date.today(), session)
                 if ai_text:
                     await session.execute(
                         update(Prompt)

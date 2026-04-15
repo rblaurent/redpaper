@@ -18,37 +18,72 @@ def _claude_path() -> str:
 
 logger = logging.getLogger(__name__)
 
-META_PROMPT_TEMPLATE = """Today is {date}. Day-of-year: {day_of_year}.
 
-You are a ComfyUI prompt engineer for the z-turbo (z_image_turbo_bf16) diffusion model.
-Your task: write exactly ONE image generation prompt for today's wallpaper.
+async def _recent_prompts_block(session, desktop_id: int, limit: int = 10) -> str:
+    """Return the last `limit` AI-generated prompts for a desktop, formatted as a
+    numbered list (most recent first). Used as anti-repetition context in the
+    meta-prompt. Falls back to a placeholder line when no session is provided or
+    no prompts exist."""
+    if session is None or desktop_id is None:
+        return "(none yet — this is the first generation)"
+    from sqlalchemy import select
+    from app.database import Prompt
+    result = await session.execute(
+        select(Prompt.text)
+        .where(Prompt.desktop_id == desktop_id, Prompt.is_ai_generated.is_(True))
+        .order_by(Prompt.created_at.desc())
+        .limit(limit)
+    )
+    rows = [r[0] for r in result.all() if r[0]]
+    if not rows:
+        return "(none yet — this is the first generation)"
+    return "\n".join(f"{i}. {t}" for i, t in enumerate(rows, start=1))
 
-The desktop's thematic direction is:
+META_PROMPT_TEMPLATE = """Today is {date}. Day-of-year: {day_of_year} of 365.
+
+You are a ComfyUI prompt engineer for the z-turbo (z_image_turbo_bf16) diffusion
+model. Write exactly ONE image prompt for today's wallpaper.
+
+DESKTOP THEME (this is your primary driver — subject, palette, mood, atmosphere,
+lighting vocabulary, and style references must all come from here):
 ---
 {theme}
 ---
 
-Using that as your creative foundation, generate a single specific scene for today.
-Day {day_of_year} out of 365 — use the date to explore a fresh angle, sub-scene, or
-moment within the theme. Never repeat yesterday.
+RECENT PROMPTS FOR THIS DESKTOP (most recent first — your prompt today must be
+clearly distinct in subject, composition, palette, and opening keywords; do not
+reuse the same opening adjectives or the same scene type):
+---
+{recent_prompts}
+---
 
-REQUIREMENTS for z-turbo:
-- Around 200-300 tokens, comma-separated keywords and short phrases — NO full sentences
-- Subjects, atmosphere, mood, color palette, lighting, composition hints
-- Quality boosters (pick what fits): masterpiece, best quality, ultra detailed, sharp focus, 8k uhd, cinematic, highly detailed, intricate
-- Lighting (pick 1-2): golden hour, dramatic backlighting, soft diffused light, neon glow, bioluminescent, moonlit, volumetric rays, rim lighting, studio lighting
+Today's task:
+- Invent a fresh scene that fits the theme but has not been used recently.
+- Use the day-of-year ({day_of_year}) as a nudge toward a different angle, time
+  of day, sub-setting, or emotional beat within the theme.
+- Draw all vocabulary (subjects, materials, lighting, colors, textures, style
+  references) from the theme itself. Do NOT default to generic photography or
+  cinematic tags unless the theme explicitly calls for them.
+- Vary the opening keywords — do not begin every prompt with the same quality
+  boosters.
 
-OUTPUT RULES — critical:
-- Output ONLY the raw prompt text, nothing else, in English
-- No explanation, no preamble, no quotes, no markdown
-- Single line only
+FORMAT:
+- ~200-300 tokens, comma-separated keywords and short phrases — NO full sentences.
+- Cover: subject(s), setting, atmosphere, mood, color palette, lighting,
+  composition hints, and style/medium cues drawn from the theme.
+- Include quality/detail cues only where they fit the theme's aesthetic.
+
+OUTPUT RULES:
+- Output ONLY the raw prompt text, in English, on a single line.
+- No explanation, no preamble, no quotes, no markdown.
 
 Prompt for {date}:"""
 
 
-async def generate_prompt_for_desktop(desktop, today: date) -> str | None:
+async def generate_prompt_for_desktop(desktop, today: date, session=None) -> str | None:
     """
-    Calls `claude -p` with a meta-prompt built from the desktop's theme description.
+    Calls `claude -p` with a meta-prompt built from the desktop's theme description
+    and the last 10 AI-generated prompts for the desktop (as anti-repetition context).
     Returns the generated ComfyUI prompt string, or None on failure.
     """
     claude = _claude_path()
@@ -56,10 +91,13 @@ async def generate_prompt_for_desktop(desktop, today: date) -> str | None:
         logger.error("claude CLI not configured — set claude_path in config.json")
         return None
 
+    recent_prompts = await _recent_prompts_block(session, desktop.id)
+
     meta = META_PROMPT_TEMPLATE.format(
         date=today.isoformat(),
         day_of_year=today.timetuple().tm_yday,
         theme=desktop.theme,
+        recent_prompts=recent_prompts,
     )
     cwd = desktop.workspace_path or None
 

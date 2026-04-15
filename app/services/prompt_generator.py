@@ -105,9 +105,9 @@ async def generate_prompt_for_desktop(desktop, today: date, session=None) -> str
     # claude -p with no argument reads the prompt from stdin.
     # .cmd/.bat files on Windows must go through cmd /c.
     if claude.lower().endswith((".cmd", ".bat")):
-        args = ["cmd", "/c", claude, "-p"]
+        args = ["cmd", "/c", claude, "-p", "--tools", ""]
     else:
-        args = [claude, "-p"]
+        args = [claude, "-p", "--tools", ""]
 
     def _run_claude():
         return subprocess.run(
@@ -200,9 +200,9 @@ async def refine_theme(current_theme: str | None, instruction: str) -> str | Non
         meta = CREATE_THEME_TEMPLATE.format(instruction=instruction)
 
     if claude.lower().endswith((".cmd", ".bat")):
-        args = ["cmd", "/c", claude, "-p"]
+        args = ["cmd", "/c", claude, "-p", "--tools", ""]
     else:
-        args = [claude, "-p"]
+        args = [claude, "-p", "--tools", ""]
 
     def _run_claude():
         return subprocess.run(

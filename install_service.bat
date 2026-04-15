@@ -36,8 +36,9 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo Installing git post-merge hook...
-copy /y "%~dp0hooks\post-merge" "%~dp0.git\hooks\post-merge" >nul
+echo Installing git hooks...
+copy /y "%~dp0hooks\post-merge"  "%~dp0.git\hooks\post-merge"  >nul
+copy /y "%~dp0hooks\post-commit" "%~dp0.git\hooks\post-commit" >nul
 :: Make it executable for Git Bash
 git config core.hooksPath .git/hooks >nul 2>&1
 

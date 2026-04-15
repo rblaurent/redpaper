@@ -3,20 +3,16 @@ Sets wallpapers per Windows 11 virtual desktop.
 
 Strategy:
   1. Write wallpaper path to per-desktop registry key so it persists across
-     reboots.
-  2. Apply immediately:
-       Current desktop  → Write directly to Windows' TranscodedWallpaper cache
-                          files + registry, then poke DWM with one SPI call.
-                          Falls back to IDesktopWallpaper COM if cache write fails.
-       Inactive desktop → queued in registry; applied on next switch.
+     reboots and is applied natively by Windows on next switch into that desktop.
+  2. For the currently active desktop, apply immediately via
+     IDesktopWallpaper::SetWallpaper (COM) per monitor, with a
+     SystemParametersInfo fallback.
 """
 import ctypes
 import ctypes.wintypes
 import logging
 import os
 import queue
-import shutil
-import struct
 import threading
 import time
 import winreg
@@ -26,27 +22,16 @@ logger = logging.getLogger(__name__)
 # ── Win32 constants ──────────────────────────────────────────────────────────
 SPI_SETDESKWALLPAPER     = 0x0014
 SPIF_UPDATEINIFILE       = 0x0001
+SPIF_SENDCHANGE          = 0x0002
 COINIT_APARTMENTTHREADED = 2
 
 user32 = ctypes.windll.user32
 ole32  = ctypes.windll.ole32
-kernel32 = ctypes.windll.kernel32
 
 VDESKTOP_DESKTOPS = (
     r"Software\Microsoft\Windows\CurrentVersion\Explorer"
     r"\VirtualDesktops\Desktops"
 )
-
-DESKTOP_REG_KEY = r"Control Panel\Desktop"
-THEMES_DIR = os.path.join(os.environ.get("APPDATA", ""), r"Microsoft\Windows\Themes")
-
-# TranscodedImageCache binary header: magic(4) + filesize(4) + width(4) + height(4)
-#   + filetime(8) + source_path(520 bytes, UTF-16LE) + monitor_path(256 bytes, UTF-16LE)
-# Total: 800 bytes
-_CACHE_HEADER_MAGIC = 0x0001C37A
-_CACHE_PATH_FIELD   = 520  # bytes (260 UTF-16 chars = MAX_PATH)
-_CACHE_MON_FIELD    = 256  # bytes (128 UTF-16 chars)
-_CACHE_ENTRY_SIZE   = 24 + _CACHE_PATH_FIELD + _CACHE_MON_FIELD  # 800
 
 # ── Keyboard input (for desktop switching) ───────────────────────────────────
 VK_LWIN        = 0x5B
@@ -152,123 +137,10 @@ def _ensure_jpeg(image_path: str) -> str:
         return image_path
 
 
-# ── Direct TranscodedWallpaper cache write ──────────────────────────────────
-
-def _file_to_filetime(path: str) -> int:
-    """Return the FILETIME (100-ns intervals since 1601-01-01) for a file's mtime."""
-    # Python epoch (1970) to Windows FILETIME epoch (1601) offset in 100-ns ticks
-    EPOCH_DELTA = 116444736000000000
-    mtime_ns = int(os.path.getmtime(path) * 10_000_000)
-    return mtime_ns + EPOCH_DELTA
-
-
-def _build_cache_entry(source_path: str, file_size: int, width: int, height: int,
-                       filetime: int, monitor_path: str = "") -> bytes:
-    """Build an 800-byte TranscodedImageCache registry value."""
-    header = struct.pack("<IIIIQ", _CACHE_HEADER_MAGIC, file_size, width, height, filetime)
-
-    src_encoded = source_path.encode("utf-16-le")[:_CACHE_PATH_FIELD]
-    src_field = src_encoded.ljust(_CACHE_PATH_FIELD, b"\x00")
-
-    mon_encoded = monitor_path.encode("utf-16-le")[:_CACHE_MON_FIELD]
-    mon_field = mon_encoded.ljust(_CACHE_MON_FIELD, b"\x00")
-
-    return header + src_field + mon_field
-
-
-def _get_image_dimensions(path: str) -> tuple[int, int]:
-    """Get image width, height without fully loading."""
-    try:
-        from PIL import Image
-        with Image.open(path) as img:
-            return img.size
-    except Exception:
-        return 1920, 1080
-
-
-def _apply_via_cache(wallpapers: list[tuple[str | None, str]]) -> bool:
-    """
-    Write wallpaper images directly to Windows' TranscodedWallpaper cache,
-    update the registry entries, then poke DWM with one SPI call.
-    This bypasses IDesktopWallpaper::SetWallpaper and its expensive transcoding.
-
-    wallpapers: list of (monitor_device_path_or_None, abs_jpeg_path)
-    Returns True on success.
-    """
-    try:
-        # Read existing cache entries to find monitor→index mapping
-        mon_to_idx: dict[str, int] = {}
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, DESKTOP_REG_KEY) as k:
-            count, _ = winreg.QueryValueEx(k, "TranscodedImageCount")
-            for i in range(count):
-                entry_name = f"TranscodedImageCache_{i:03d}"
-                try:
-                    data, _ = winreg.QueryValueEx(k, entry_name)
-                    mon = data[544:544 + _CACHE_MON_FIELD].decode("utf-16-le").rstrip("\x00")
-                    if mon:
-                        mon_to_idx[mon] = i
-                except OSError:
-                    pass
-
-        primary_path = None  # Track which JPEG to use for the primary TranscodedWallpaper
-
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, DESKTOP_REG_KEY,
-                            access=winreg.KEY_SET_VALUE) as k:
-            for device_path, jpeg_path in wallpapers:
-                file_size = os.path.getsize(jpeg_path)
-                width, height = _get_image_dimensions(jpeg_path)
-                filetime = _file_to_filetime(jpeg_path)
-
-                if device_path and device_path in mon_to_idx:
-                    idx = mon_to_idx[device_path]
-                    # Write the JPEG to the Transcoded_NNN cache file
-                    cache_file = os.path.join(THEMES_DIR, f"Transcoded_{idx:03d}")
-                    shutil.copy2(jpeg_path, cache_file)
-
-                    # Update the registry entry
-                    entry = _build_cache_entry(jpeg_path, file_size, width, height,
-                                               filetime, device_path)
-                    winreg.SetValueEx(k, f"TranscodedImageCache_{idx:03d}", 0,
-                                      winreg.REG_BINARY, entry)
-
-                    if primary_path is None:
-                        primary_path = jpeg_path
-                else:
-                    # No device path or unknown monitor — use as primary
-                    primary_path = jpeg_path
-
-            # Also write the primary TranscodedWallpaper
-            if primary_path:
-                cache_file = os.path.join(THEMES_DIR, "TranscodedWallpaper")
-                shutil.copy2(primary_path, cache_file)
-
-                file_size = os.path.getsize(primary_path)
-                width, height = _get_image_dimensions(primary_path)
-                filetime = _file_to_filetime(primary_path)
-                entry = _build_cache_entry(primary_path, file_size, width, height, filetime)
-                winreg.SetValueEx(k, "TranscodedImageCache", 0, winreg.REG_BINARY, entry)
-
-        # Poke DWM to refresh from cache — one call instead of N SetWallpaper calls
-        if primary_path:
-            user32.SystemParametersInfoW(
-                SPI_SETDESKWALLPAPER, 0, primary_path, SPIF_UPDATEINIFILE
-            )
-
-        logger.info("Applied wallpapers via direct cache write (%d monitors)", len(wallpapers))
-        return True
-
-    except Exception as exc:
-        logger.warning("Direct cache write failed: %s — falling back to COM", exc)
-        return False
-
-
-# ── Dedicated COM worker thread (fallback) ──────────────────────────────────
+# ── Dedicated COM worker thread ─────────────────────────────────────────────
 
 class _ComWorker:
-    """
-    Long-lived thread that owns the COM apartment and IDesktopWallpaper object.
-    Used as fallback when direct cache write isn't possible.
-    """
+    """Long-lived thread that owns the COM apartment and IDesktopWallpaper object."""
 
     def __init__(self):
         self._queue: queue.Queue = queue.Queue()
@@ -361,7 +233,7 @@ def _apply_spi(abs_path: str) -> bool:
     """Apply wallpaper globally via SystemParametersInfo."""
     result = user32.SystemParametersInfoW(
         SPI_SETDESKWALLPAPER, 0, abs_path,
-        SPIF_UPDATEINIFILE,
+        SPIF_UPDATEINIFILE | SPIF_SENDCHANGE,
     )
     return bool(result)
 
@@ -432,9 +304,7 @@ def set_wallpaper_for_desktop(
 
     if is_current:
         fast_path = _ensure_jpeg(abs_path)
-        if _apply_via_cache([(None, fast_path)]):
-            logger.info("Applied wallpaper (cache) for current desktop %s", desktop_guid)
-        elif _apply_com(fast_path):
+        if _apply_com(fast_path):
             logger.info("Applied wallpaper (COM) for current desktop %s", desktop_guid)
         elif _apply_spi(fast_path):
             logger.info("Applied wallpaper (SPI) for current desktop %s", desktop_guid)
@@ -453,8 +323,6 @@ def set_wallpaper_current_desktop(image_path: str) -> bool:
     """Set wallpaper on the currently active virtual desktop."""
     abs_path = os.path.abspath(image_path).replace("/", "\\")
     fast_path = _ensure_jpeg(abs_path)
-    if _apply_via_cache([(None, fast_path)]):
-        return True
     if _apply_com(fast_path):
         return True
     return _apply_spi(fast_path)
@@ -473,10 +341,10 @@ def set_wallpapers_for_desktop(
     monitor_wallpapers is a list of (monitor_device_path, image_path) pairs.
     Use None as the device_path to apply to all monitors at once.
 
-    1. Write the first entry's path to the per-desktop registry key.
-    2. Apply immediately — only when this IS the currently active desktop.
-       Primary path: write directly to Windows' TranscodedWallpaper cache.
-       Fallback: IDesktopWallpaper COM.
+    1. Write the first entry's path to the per-desktop registry key so Windows
+       applies it natively on the next switch into that desktop.
+    2. When this IS the currently active desktop, apply immediately via
+       IDesktopWallpaper::SetWallpaper per monitor (COM), with an SPI fallback.
     Returns True when the registry write succeeded.
     """
     if not monitor_wallpapers:
@@ -501,18 +369,11 @@ def set_wallpapers_for_desktop(
         is_current = False
 
     if is_current:
-        # Convert all to JPEG first
         jpeg_pairs = [(dp, _ensure_jpeg(ap)) for dp, ap in abs_pairs]
-
-        # Try direct cache write (no DWM transcoding, no freeze)
-        if _apply_via_cache(jpeg_pairs):
-            logger.info("Applied wallpapers via cache for current desktop %s", desktop_guid)
-        else:
-            # Fallback to COM per-monitor
-            for device_path, jpeg_path in jpeg_pairs:
-                if not _apply_com(jpeg_path, device_path):
-                    _apply_spi(jpeg_path)
-            logger.info("Applied wallpapers (COM fallback) for current desktop %s", desktop_guid)
+        for device_path, jpeg_path in jpeg_pairs:
+            if not _apply_com(jpeg_path, device_path):
+                _apply_spi(jpeg_path)
+        logger.info("Applied wallpapers (COM) for current desktop %s", desktop_guid)
     else:
         logger.info(
             "Wallpapers queued (registry) for inactive desktop %s — "

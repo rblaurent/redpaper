@@ -183,7 +183,7 @@ async def generate_for_desktop(desktop_info: DesktopInfo, prompt_text: str | Non
                 db_prompt_id, prompt_text = await _get_active_prompt(session, desktop.id, "")
 
         # Store resolved prompt in progress so frontend can display it
-        _progress["prompt"] = (prompt_text or "")[:400]
+        _progress["prompt"] = prompt_text or ""
 
         # ── Determine per-monitor mode ────────────────────────────────────────
         detected = await asyncio.to_thread(get_monitors)

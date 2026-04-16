@@ -51,6 +51,8 @@ def load_config() -> dict:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    from app.services.wallpaper_setter import ensure_jpeg_quality_setting
+    ensure_jpeg_quality_setting()
     start_scheduler()
     yield
 
